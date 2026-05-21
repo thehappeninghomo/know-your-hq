@@ -534,11 +534,9 @@ export default function App() {
             {loading ? "Loading…" : "Take The Stage ▶"}
           </button>
 
-          {leaderboard.length > 0 && (
-            <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setScreen("leaderboard")}>
-              🏆 Leaderboard ({leaderboard.length} players)
-            </button>
-          )}
+          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setScreen("leaderboard")}>
+            🏆 Leaderboard{leaderboard.length > 0 ? ` (${leaderboard.length} players)` : ""}
+          </button>
         </div>
       )}
 
