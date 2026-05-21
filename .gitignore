@@ -1,0 +1,11 @@
+node_modules/
+server/node_modules/
+client/node_modules/
+client/build/
+
+# Never commit the actual .env — only the .env.example template
+server/.env
+client/.env
+
+# OS
+.DS_Store
