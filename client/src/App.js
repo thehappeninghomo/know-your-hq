@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 
-// ── Persistent leaderboard (in-memory for the session) ────────────────────────
-let LEADERBOARD = [];
-let ENTRY_ID = 1;
-
 // ── API base — reads from env, falls back to same-origin proxy ────────────────
 const API_BASE = process.env.REACT_APP_API_URL || "";
+
+async function fetchLeaderboard() {
+  const res = await fetch(`${API_BASE}/api/leaderboard`);
+  const data = await res.json();
+  return data.leaderboard || [];
+}
 
 // ── Claude API helper — calls OUR backend, not Anthropic directly ─────────────
 async function callClaude(body) {
@@ -292,11 +294,17 @@ export default function App() {
   const [timeLeft, setTimeLeft]       = useState(30);
   const [timerOn, setTimerOn]         = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [animKey, setAnimKey]         = useState(0);
   const finalScoreRef                 = useRef(0);
   const timerRef                      = useRef(null);
 
   const MAX_SCORE = 6 * 25;
+
+  // ── Load leaderboard on mount ─────────────────────────────────────────────────
+  useEffect(() => {
+    fetchLeaderboard().then(setLeaderboard).catch(() => {});
+  }, []);
 
   // ── Timer ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -351,7 +359,7 @@ export default function App() {
   }
 
   // ── Next question ─────────────────────────────────────────────────────────────
-  function handleNext() {
+  async function handleNext() {
     const pts = chosen ? OPTION_TYPES[chosen.type].points : 0;
     const newTotal = totalScore + pts;
     setScores(prev => [...prev, { type: chosen?.type || "SAFE", pts }]);
@@ -362,11 +370,21 @@ export default function App() {
       const hq = getHQTitle(newTotal, MAX_SCORE);
       if (newTotal >= MAX_SCORE * 0.55) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 3000); }
       const entry = {
-        id: ENTRY_ID++, name: name.trim(), score: newTotal,
+        name: name.trim(), score: newTotal,
         title: hq.title, emoji: hq.emoji,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      LEADERBOARD = [...LEADERBOARD, entry].sort((a, b) => b.score - a.score).slice(0, 10);
+      try {
+        const res = await fetch(`${API_BASE}/api/leaderboard`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        const data = await res.json();
+        setLeaderboard(data.leaderboard || []);
+      } catch {
+        setLeaderboard(lb => [...lb, { ...entry, id: Date.now() }].sort((a, b) => b.score - a.score).slice(0, 10));
+      }
       setScreen("result");
       return;
     }
@@ -382,7 +400,7 @@ export default function App() {
     ? finalScoreRef.current
     : scores.reduce((s, r) => s + r.pts, 0) + (chosen ? OPTION_TYPES[chosen.type]?.points || 0 : 0);
   const hqInfo = getHQTitle(displayFinalScore, MAX_SCORE);
-  const myRank = LEADERBOARD.findIndex(e => e.name === name.trim() && e.score === displayFinalScore) + 1;
+  const myRank = leaderboard.findIndex(e => e.name === name.trim() && e.score === displayFinalScore) + 1;
   const allScores = scores.concat(chosen ? [{ type: chosen.type }] : []);
   const styleCount = allScores.reduce((a, s) => { a[s.type] = (a[s.type] || 0) + 1; return a; }, {});
   const dominantStyle = Object.entries(styleCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "FUNNY";
@@ -516,9 +534,9 @@ export default function App() {
             {loading ? "Loading…" : "Take The Stage ▶"}
           </button>
 
-          {LEADERBOARD.length > 0 && (
+          {leaderboard.length > 0 && (
             <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setScreen("leaderboard")}>
-              🏆 Leaderboard ({LEADERBOARD.length} players)
+              🏆 Leaderboard ({leaderboard.length} players)
             </button>
           )}
         </div>
@@ -688,11 +706,11 @@ export default function App() {
             <h2 className="dp curtain" style={{ fontSize: 44, margin: 0 }}>🏆 Comedy Rankings</h2>
             <p className="sn" style={{ color: "#4a4060", marginTop: 8, fontSize: 14 }}>Ranked by Humour Quotient score</p>
           </div>
-          {LEADERBOARD.length === 0 ? (
+          {leaderboard.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0", color: "#2a2040" }} className="sn">No comedians yet. Be the first!</div>
           ) : (
             <div style={{ marginBottom: 24 }}>
-              {LEADERBOARD.map((e, i) => {
+              {leaderboard.map((e, i) => {
                 const isMe = e.name === name && e.score === displayFinalScore;
                 return (
                   <div key={e.id} className={`lb-row ${isMe ? "me" : ""} ${i === 0 ? "top" : ""}`}>

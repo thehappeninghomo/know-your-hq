@@ -1,6 +1,6 @@
-# 🎭 Know Your Humour Quotient
+# Know Your Humour Quotient
 
-An AI-powered comedy game for booth events. Players pick from 4 mystery options for funny scenarios — Claude judges their humour style and ranks them on a live leaderboard.
+An AI-powered comedy game for booth events. Players pick from 4 mystery options for funny scenarios — the AI judges their humour style and ranks them on a live leaderboard that persists across sessions.
 
 ---
 
@@ -8,21 +8,22 @@ An AI-powered comedy game for booth events. Players pick from 4 mystery options 
 
 ```
 know-your-hq/
-├── server/          ← Express backend (holds the API key)
+├── server/                  ← Express backend (holds API keys, leaderboard data)
 │   ├── index.js
+│   ├── leaderboard.json     ← auto-created on first play; gitignored
 │   ├── package.json
-│   └── .env.example → copy to .env and fill in your key
+│   └── .env.example         ← copy to .env and fill in your keys
 │
-├── client/          ← React frontend
+├── client/                  ← React frontend
 │   ├── src/
 │   │   ├── index.js
 │   │   └── App.js
 │   ├── public/
 │   │   └── index.html
 │   ├── package.json
-│   └── .env.example → copy to .env and fill in server URL
+│   └── .env.example         ← copy to .env and fill in server URL
 │
-├── package.json     ← root scripts to run both together
+├── package.json             ← root scripts to run both together
 └── .gitignore
 ```
 
@@ -30,11 +31,15 @@ know-your-hq/
 
 ## Setup — Step by Step
 
-### 1. Get your Anthropic API key
+### 1. Get your API key(s)
 
-- Go to https://platform.anthropic.com/api-keys
-- Create an account and generate a key
-- It looks like: `sk-ant-api03-xxxxxxxx...`
+You need at least one key. The game lets players pick their AI provider from Claude, Gemini, or GPT-4o.
+
+| Provider  | Where to get it                          |
+|-----------|------------------------------------------|
+| Claude    | https://platform.anthropic.com/api-keys  |
+| Gemini    | https://aistudio.google.com/apikey       |
+| OpenAI    | https://platform.openai.com/api-keys     |
 
 ### 2. Configure the server
 
@@ -43,13 +48,18 @@ cd server
 cp .env.example .env
 ```
 
-Open `server/.env` and paste your key:
+Open `server/.env` and paste your key(s):
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-api03-your-actual-key-here
+ANTHROPIC_API_KEY=your-anthropic-key-here
+GEMINI_API_KEY=your-gemini-key-here
+OPENAI_API_KEY=your-openai-key-here
+
 PORT=3001
 CLIENT_ORIGIN=http://localhost:3000
 ```
+
+You only need to fill in the keys for the providers you want to use. The app falls back to built-in questions if a key is missing or the API call fails.
 
 ### 3. Configure the client
 
@@ -66,7 +76,7 @@ REACT_APP_API_URL=http://localhost:3001
 
 ### 4. Install dependencies
 
-From the root folder:
+From the **root** folder:
 
 ```bash
 npm install
@@ -82,6 +92,23 @@ npm run dev
 This starts both the server (port 3001) and the React app (port 3000) simultaneously.
 
 Open http://localhost:3000 in your browser.
+
+---
+
+## Leaderboard
+
+Scores are saved to `server/leaderboard.json` on the server. This file:
+
+- Is created automatically on the first game played
+- Persists across page refreshes and server restarts
+- Is shared across all devices/browsers connected to the same server
+- Is gitignored so scores don't end up in version control
+
+To reset the leaderboard, delete `server/leaderboard.json` or send:
+
+```bash
+curl -X DELETE http://localhost:3001/api/leaderboard
+```
 
 ---
 
@@ -109,7 +136,7 @@ Open http://localhost:3000 in your browser.
 ### Option B — Separate hosting (e.g. Vercel + Railway)
 
 - **Backend**: Deploy `server/` to Railway, Render, or any Node host
-  - Set `ANTHROPIC_API_KEY` and `CLIENT_ORIGIN` in the platform's env settings
+  - Set `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, and `CLIENT_ORIGIN` in the platform's env settings
 - **Frontend**: Deploy `client/` to Vercel or Netlify
   - Set `REACT_APP_API_URL` to your backend's deployed URL
 
@@ -119,37 +146,37 @@ Open http://localhost:3000 in your browser.
 
 ### server/.env
 
-| Variable           | Required | Description                                      |
-|--------------------|----------|--------------------------------------------------|
-| ANTHROPIC_API_KEY  | ✅ YES   | Your Anthropic API key from platform.anthropic.com |
-| PORT               | optional | Server port (default: 3001)                      |
-| CLIENT_ORIGIN      | optional | Frontend URL for CORS (default: localhost:3000)  |
+| Variable           | Required          | Description                                        |
+|--------------------|-------------------|----------------------------------------------------|
+| ANTHROPIC_API_KEY  | At least one key  | Anthropic API key — powers Claude (claude-sonnet-4-5) |
+| GEMINI_API_KEY     | At least one key  | Google API key — powers Gemini (gemini-2.0-flash)  |
+| OPENAI_API_KEY     | At least one key  | OpenAI API key — powers GPT-4o                     |
+| PORT               | optional          | Server port (default: 3001)                        |
+| CLIENT_ORIGIN      | optional          | Frontend URL for CORS (default: localhost:3000)    |
 
 ### client/.env
 
-| Variable             | Required | Description                          |
-|----------------------|----------|--------------------------------------|
-| REACT_APP_API_URL    | optional | Backend URL (default: same origin)   |
+| Variable          | Required | Description                                   |
+|-------------------|----------|-----------------------------------------------|
+| REACT_APP_API_URL | optional | Backend URL (default: same origin via proxy)  |
 
 ---
 
 ## Security Notes
 
-- ✅ The API key lives **only** on the server — never in the browser
-- ✅ `.env` files are in `.gitignore` — never committed to git
-- ✅ CORS is configured to only accept requests from your frontend URL
-- ⚠️ For a public booth, consider adding rate limiting (e.g. `express-rate-limit`) to prevent API abuse
+- The API keys live **only** on the server — never sent to the browser
+- `.env` files and `leaderboard.json` are in `.gitignore` — never committed to git
+- CORS is configured to only accept requests from your frontend URL
+- For a public booth, consider adding rate limiting (e.g. `express-rate-limit`) to prevent API abuse
 
 ---
 
 ## Cost Estimate
 
-Each game generates ~1,500 input tokens + ~800 output tokens.
+Each game generates roughly 1,500 input tokens + 800 output tokens per player.
 
-| Players | Approx Cost |
-|---------|-------------|
-| 50      | ~$0.25      |
-| 200     | ~$1.00      |
-| 500     | ~$2.50      |
-
-Model used: `claude-sonnet-4-5` at $3/$15 per million tokens.
+| Players | Claude (Sonnet 4.5) | Gemini (2.0 Flash) | GPT-4o     |
+|---------|---------------------|--------------------|------------|
+| 50      | ~$0.25              | ~$0.01             | ~$0.35     |
+| 200     | ~$1.00              | ~$0.04             | ~$1.40     |
+| 500     | ~$2.50              | ~$0.10             | ~$3.50     |

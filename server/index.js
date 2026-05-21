@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -9,8 +11,42 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:3000" }));
 app.use(express.json());
 
+// ── Leaderboard persistence (JSON file) ───────────────────────────────────────
+const LB_FILE = path.join(__dirname, "leaderboard.json");
+
+function readLeaderboard() {
+  try { return JSON.parse(fs.readFileSync(LB_FILE, "utf8")); } catch { return []; }
+}
+
+function writeLeaderboard(entries) {
+  fs.writeFileSync(LB_FILE, JSON.stringify(entries, null, 2));
+}
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// ── Leaderboard endpoints ─────────────────────────────────────────────────────
+app.get("/api/leaderboard", (_req, res) => {
+  res.json({ leaderboard: readLeaderboard() });
+});
+
+app.post("/api/leaderboard", (req, res) => {
+  const { name, score, title, emoji, time } = req.body;
+  if (!name || score == null || !title || !emoji || !time) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  const entry = { id: Date.now(), name, score, title, emoji, time };
+  const updated = [...readLeaderboard(), entry]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+  writeLeaderboard(updated);
+  res.json({ leaderboard: updated });
+});
+
+app.delete("/api/leaderboard", (_req, res) => {
+  writeLeaderboard([]);
+  res.json({ leaderboard: [] });
+});
 
 // ── Proxy to Anthropic API — key never leaves the server ─────────────────────
 app.post("/api/claude", async (req, res) => {
