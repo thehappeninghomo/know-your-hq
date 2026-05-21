@@ -6,7 +6,6 @@ client/build/
 # Never commit the actual .env — only the .env.example template
 server/.env
 client/.env
-server/leaderboard.json
 
 # OS
 .DS_Store
