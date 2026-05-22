@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 // ── API base — reads from env, falls back to same-origin proxy ────────────────
-const API_BASE = process.env.REACT_APP_API_URL || "";
+const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
 
 async function fetchLeaderboard() {
   const res = await fetch(`${API_BASE}/api/leaderboard`);
@@ -534,7 +534,7 @@ export default function App() {
             {loading ? "Loading…" : "Take The Stage ▶"}
           </button>
 
-          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setScreen("leaderboard")}>
+          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => window.location.href = "/leaderboard"}>
             🏆 Leaderboard{leaderboard.length > 0 ? ` (${leaderboard.length} players)` : ""}
           </button>
         </div>

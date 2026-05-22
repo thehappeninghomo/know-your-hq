@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const { Pool } = require("pg");
 require("dotenv").config();
@@ -125,5 +126,10 @@ app.post("/api/openai", async (req, res) => {
     res.status(500).json({ error: "Failed to reach OpenAI API" });
   }
 });
+
+// ── Serve React build (production) ───────────────────────────────────────────
+const BUILD = path.join(__dirname, "../client/build");
+app.use(express.static(BUILD));
+app.get("*", (_req, res) => res.sendFile(path.join(BUILD, "index.html")));
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
