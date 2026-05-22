@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchLeaderboard, saveScore, callClaude, callGemini, callOpenAI } from "./api";
+import "./styles/App.css";
 
 // ── Option types ──────────────────────────────────────────────────────────────
 const OPTION_TYPES = {
-  FUNNY:    { points: 25, color: "#f59e0b", bg: "rgba(245,158,11,.1)",  border: "rgba(245,158,11,.3)",  label: "😂 Genuinely Funny"   },
-  SAFE:     { points: 10, color: "#60a5fa", bg: "rgba(96,165,250,.08)", border: "rgba(96,165,250,.25)", label: "😐 Safe & Boring"      },
-  SARCASTIC:{ points: 18, color: "#a78bfa", bg: "rgba(167,139,250,.1)", border: "rgba(167,139,250,.3)", label: "😏 Sarcastic"          },
-  UNHINGED: { points: 15, color: "#f472b6", bg: "rgba(244,114,182,.1)", border: "rgba(244,114,182,.3)", label: "🤪 Completely Unhinged" },
+  FUNNY:    { points: 25, color: "#D22D1E", label: "😂 Genuinely Funny",    key: "funny"     },
+  SAFE:     { points: 10, color: "#4A7AE0", label: "😐 Safe & Boring",      key: "safe"      },
+  SARCASTIC:{ points: 18, color: "#963AB1", label: "😏 Sarcastic",          key: "sarcastic" },
+  UNHINGED: { points: 15, color: "#C4356A", label: "🤪 Completely Unhinged", key: "unhinged"  },
 };
 
 const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Each has 4 answer options.
@@ -42,7 +43,6 @@ function parseQuestions(raw) {
   }
 }
 
-// ── Generate questions via backend proxy ──────────────────────────────────────
 async function generateQuestions(provider = "claude") {
   if (provider === "gemini") {
     const data = await callGemini({
@@ -59,11 +59,7 @@ async function generateQuestions(provider = "claude") {
       model: "gpt-4o",
       temperature: 1.0,
       messages: [
-        {
-          role: "system",
-          content: `You generate questions for a comedy game called "Know Your Humour Quotient".
-Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
-        },
+        { role: "system", content: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.` },
         { role: "user", content: QUESTIONS_PROMPT },
       ],
     });
@@ -74,8 +70,7 @@ Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
   const data = await callClaude({
     model: "claude-sonnet-4-5",
     max_tokens: 3000,
-    system: `You generate questions for a comedy game called "Know Your Humour Quotient".
-Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
+    system: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
     messages: [{ role: "user", content: QUESTIONS_PROMPT }],
   });
   const raw = data.content?.find(b => b.type === "text")?.text?.trim() || "[]";
@@ -146,31 +141,36 @@ const FALLBACK_QUESTIONS = [
   },
 ];
 
-// ── HQ Title ──────────────────────────────────────────────────────────────────
+// ── HQ title ──────────────────────────────────────────────────────────────────
 function getHQTitle(score, maxScore) {
   const pct = score / maxScore;
-  if (pct >= 0.88) return { title: "COMEDY LEGEND",      sub: "You could headline a show.",       emoji: "🌟", color: "#f59e0b" };
-  if (pct >= 0.72) return { title: "CERTIFIED FUNNY",    sub: "The room genuinely loves you.",     emoji: "😂", color: "#fb923c" };
-  if (pct >= 0.55) return { title: "WIT WITH POTENTIAL", sub: "Good instincts, needs polish.",     emoji: "😄", color: "#f472b6" };
-  if (pct >= 0.38) return { title: "ACCIDENTAL COMIC",   sub: "Funny without meaning to be.",      emoji: "🙃", color: "#a78bfa" };
-  if (pct >= 0.20) return { title: "HUMOUR PADAWAN",     sub: "The force is… still loading.",      emoji: "🙂", color: "#60a5fa" };
-  return              { title: "CHRONICALLY SERIOUS",    sub: "Have you tried laughing once?",      emoji: "😑", color: "#94a3b8" };
+  if (pct >= 0.88) return { title: "COMEDY LEGEND",      sub: "You could headline a show.",       emoji: "🌟", color: "#D22D1E" };
+  if (pct >= 0.72) return { title: "CERTIFIED FUNNY",    sub: "The room genuinely loves you.",     emoji: "😂", color: "#C4356A" };
+  if (pct >= 0.55) return { title: "WIT WITH POTENTIAL", sub: "Good instincts, needs polish.",     emoji: "😄", color: "#963AB1" };
+  if (pct >= 0.38) return { title: "ACCIDENTAL COMIC",   sub: "Funny without meaning to be.",      emoji: "🙃", color: "#963AB1" };
+  if (pct >= 0.20) return { title: "HUMOUR PADAWAN",     sub: "The force is… still loading.",      emoji: "🙂", color: "#4A7AE0" };
+  return              { title: "CHRONICALLY SERIOUS",    sub: "Have you tried laughing once?",      emoji: "😑", color: "#4A4455" };
 }
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 function Confetti({ active }) {
   const pieces = useRef(Array.from({ length: 70 }, (_, i) => ({
-    id: i, x: Math.random() * 100,
-    color: ["#f59e0b","#fbbf24","#ef4444","#ec4899","#8b5cf6","#06b6d4","#4ade80","#fff"][i % 8],
-    delay: Math.random() * 1.4, size: 7 + Math.random() * 7, dur: 1.6 + Math.random() * 1.2,
+    id: i,
+    x: Math.random() * 100,
+    color: ["#D22D1E","#963AB1","#20469B","#C4356A","#4A7AE0","#fff","#A82418","#7B2D9A"][i % 8],
+    delay: Math.random() * 1.4,
+    size: 7 + Math.random() * 7,
+    dur: 1.6 + Math.random() * 1.2,
   })));
   if (!active) return null;
   return (
-    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 999, overflow: "hidden" }}>
+    <div className="confetti-wrap">
       {pieces.current.map(p => (
-        <div key={p.id} style={{
-          position: "absolute", top: -20, left: `${p.x}%`,
-          width: p.size, height: p.size, background: p.color, borderRadius: 2,
+        <div key={p.id} className="confetti-piece" style={{
+          left: `${p.x}%`,
+          width: p.size,
+          height: p.size,
+          background: p.color,
           animation: `confettiFall ${p.dur}s ease ${p.delay}s forwards`,
         }} />
       ))}
@@ -181,10 +181,10 @@ function Confetti({ active }) {
 // ── Timer ring ────────────────────────────────────────────────────────────────
 function TimerRing({ value, max = 30 }) {
   const r = 26, circ = 2 * Math.PI * r;
-  const color = value > 15 ? "#f59e0b" : value > 8 ? "#fb923c" : "#ef4444";
+  const color = value > 15 ? "#D22D1E" : value > 8 ? "#963AB1" : "#C4356A";
   return (
     <svg width={64} height={64} viewBox="0 0 64 64" style={{ filter: `drop-shadow(0 0 8px ${color}60)` }}>
-      <circle cx={32} cy={32} r={r} fill="none" stroke="#1e1a30" strokeWidth={5} />
+      <circle cx={32} cy={32} r={r} fill="none" stroke="#1A181B" strokeWidth={5} />
       <circle cx={32} cy={32} r={r} fill="none" stroke={color} strokeWidth={5}
         strokeDasharray={circ} strokeDashoffset={circ * (1 - value / max)}
         strokeLinecap="round" transform="rotate(-90 32 32)"
@@ -195,7 +195,7 @@ function TimerRing({ value, max = 30 }) {
   );
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ toast, onDismiss }) {
   useEffect(() => {
     if (!toast) return;
@@ -203,26 +203,12 @@ function Toast({ toast, onDismiss }) {
     return () => clearTimeout(id);
   }, [toast, onDismiss]);
   if (!toast) return null;
-  const palette = {
-    error:   { bg: "rgba(239,68,68,.12)",   border: "rgba(239,68,68,.35)",   icon: "✗", color: "#f87171" },
-    warning: { bg: "rgba(245,158,11,.10)",  border: "rgba(245,158,11,.30)",  icon: "⚡", color: "#fbbf24" },
-    info:    { bg: "rgba(96,165,250,.10)",  border: "rgba(96,165,250,.30)",  icon: "✦", color: "#93c5fd" },
-  };
-  const c = palette[toast.type] || palette.info;
+  const icons = { error: "✗", warning: "⚡", info: "✦" };
   return (
-    <div style={{
-      position: "fixed", bottom: 24, right: 20, zIndex: 1000,
-      width: 280,
-      background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12,
-      padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start",
-      boxShadow: `0 8px 32px rgba(0,0,0,.7)`,
-      animation: "toastIn .3s cubic-bezier(.2,1,.4,1) forwards",
-    }}>
-      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1, color: c.color }}>{c.icon}</span>
-      <p className="sn" style={{ color: c.color, fontSize: 13, margin: 0, lineHeight: 1.55, flex: 1 }}>
-        {toast.message}
-      </p>
-      <button onClick={onDismiss} style={{ background: "none", border: "none", color: c.color, cursor: "pointer", fontSize: 18, padding: "0 2px", flexShrink: 0, opacity: 0.5, lineHeight: 1 }}>×</button>
+    <div className={`toast ${toast.type}`}>
+      <span className="toast-icon">{icons[toast.type] || "✦"}</span>
+      <p className="toast-msg">{toast.message}</p>
+      <button className="toast-close" onClick={onDismiss}>×</button>
     </div>
   );
 }
@@ -250,12 +236,10 @@ export default function App() {
 
   const MAX_SCORE = 6 * 25;
 
-  // ── Load leaderboard on mount ─────────────────────────────────────────────────
   useEffect(() => {
     fetchLeaderboard().then(setLeaderboard).catch(() => {});
   }, []);
 
-  // ── Timer ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!timerOn) { clearInterval(timerRef.current); return; }
     timerRef.current = setInterval(() => {
@@ -275,10 +259,9 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [timerOn, qIdx]); // eslint-disable-line
 
-  function stopTimer() { setTimerOn(false); clearInterval(timerRef.current); }
+  function stopTimer()  { setTimerOn(false); clearInterval(timerRef.current); }
   function startTimer() { setTimeLeft(30); setTimerOn(true); }
 
-  // ── Start game ────────────────────────────────────────────────────────────────
   async function startGame() {
     if (!name.trim()) return;
     setLoading(true);
@@ -286,7 +269,7 @@ export default function App() {
     let qs;
     try {
       qs = await generateQuestions(provider);
-    } catch (err) {
+    } catch {
       qs = FALLBACK_QUESTIONS;
       const label = provider === "claude" ? "Claude" : provider === "gemini" ? "Gemini" : "OpenAI";
       setToast({ type: "warning", message: `${label} unavailable — using built-in questions` });
@@ -300,14 +283,12 @@ export default function App() {
     startTimer();
   }
 
-  // ── Pick option ───────────────────────────────────────────────────────────────
   function handlePick(option) {
     stopTimer();
     if (chosen) return;
     setChosen(option);
   }
 
-  // ── Next question ─────────────────────────────────────────────────────────────
   async function handleNext() {
     const pts = chosen ? OPTION_TYPES[chosen.type].points : 0;
     const newTotal = totalScore + pts;
@@ -350,71 +331,7 @@ export default function App() {
   const dominantStyle = Object.entries(styleCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "FUNNY";
 
   return (
-    <div style={{
-      minHeight: "100vh", background: "#0b0914",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "20px 16px", position: "relative", overflow: "hidden",
-      fontFamily: "Georgia, serif",
-    }}>
-      <style>{`
-        .spotlight { position:fixed;inset:0;pointer-events:none;z-index:0;
-          background:radial-gradient(ellipse 80% 40% at 50% 0%,rgba(245,158,11,.07) 0%,transparent 65%),
-                     radial-gradient(ellipse 40% 50% at 90% 90%,rgba(167,139,250,.05) 0%,transparent 60%); }
-        .card { background:rgba(15,12,24,.97);border:1px solid rgba(245,158,11,.12);
-          border-radius:24px;padding:32px 28px;width:100%;max-width:560px;
-          position:relative;z-index:1;box-shadow:0 0 80px rgba(0,0,0,.9); }
-        .opt-btn { width:100%;text-align:left;border-radius:16px;padding:16px 20px;
-          cursor:pointer;border:1.5px solid;transition:all .18s;
-          font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.5;
-          position:relative;overflow:hidden;background:transparent; }
-        .opt-btn:hover:not(:disabled) { transform:translateX(4px) scale(1.01); }
-        .opt-btn:disabled { cursor:default;transform:none !important; }
-        .opt-chosen { transform:translateX(6px) !important; }
-        .name-input { width:100%;box-sizing:border-box;background:rgba(255,255,255,.03);
-          border:1.5px solid rgba(255,255,255,.08);border-radius:14px;color:#f0e6d0;
-          font-family:'DM Sans',sans-serif;padding:14px 18px;font-size:18px;outline:none;
-          transition:border-color .2s,box-shadow .2s; }
-        .name-input:focus { border-color:#f59e0b;box-shadow:0 0 20px rgba(245,158,11,.15); }
-        .name-input::placeholder { color:#2a2540; }
-        .btn-main { width:100%;padding:15px;background:linear-gradient(135deg,#f59e0b,#d97706);
-          color:#0b0914;border:none;border-radius:14px;
-          font-family:'Playfair Display',serif;font-size:19px;font-weight:700;
-          cursor:pointer;letter-spacing:.03em;box-shadow:0 4px 24px rgba(245,158,11,.4);
-          transition:all .15s; }
-        .btn-main:hover { transform:translateY(-2px);box-shadow:0 8px 32px rgba(245,158,11,.5); }
-        .btn-main:disabled { opacity:.3;cursor:not-allowed;transform:none; }
-        .btn-ghost { padding:11px 24px;background:transparent;
-          border:1.5px solid rgba(255,255,255,.08);border-radius:10px;color:#5a5270;
-          font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .15s; }
-        .btn-ghost:hover { border-color:rgba(245,158,11,.4);color:#f59e0b; }
-        .slide-up { animation:slideUp .4s cubic-bezier(.2,1,.4,1) forwards; }
-        @keyframes slideUp { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none} }
-        .pop { animation:pop .35s cubic-bezier(.34,1.56,.64,1) forwards; }
-        @keyframes pop { from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)} }
-        .lb-row { display:flex;align-items:center;gap:12px;padding:11px 14px;
-          border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);
-          margin-bottom:8px;transition:border-color .15s; }
-        .lb-row.me { border-color:#f59e0b !important;background:rgba(245,158,11,.04) !important; }
-        .lb-row.top { border-color:rgba(245,158,11,.35) !important; }
-        .curtain { font-family:'Playfair Display',serif;
-          background:linear-gradient(135deg,#f59e0b,#fbbf24,#f59e0b);
-          -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }
-        .progress-dot { height:6px;border-radius:3px;transition:all .3s; }
-        .score-bar-wrap { height:8px;border-radius:4px;background:#1e1a2e;overflow:hidden;margin:8px 0; }
-        .score-bar-fill { height:100%;border-radius:4px;transition:width .8s cubic-bezier(.2,1,.4,1); }
-        .think-dots span { display:inline-block;width:9px;height:9px;background:#f59e0b;
-          border-radius:50%;margin:0 3px;animation:db 1.2s infinite; }
-        .think-dots span:nth-child(2){animation-delay:.2s}
-        .think-dots span:nth-child(3){animation-delay:.4s}
-        @keyframes db{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1.2);opacity:1}}
-        @keyframes toastIn { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
-        @keyframes confettiFall {
-          0%{transform:translateY(0) rotate(0) scaleX(1);opacity:1}
-          50%{transform:translateY(50vh) rotate(360deg) scaleX(-1);opacity:.9}
-          100%{transform:translateY(105vh) rotate(720deg);opacity:0}
-        }
-      `}</style>
-
+    <div className="app-wrap">
       <div className="spotlight" />
       <Confetti active={showConfetti} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
@@ -422,49 +339,40 @@ export default function App() {
       {/* ── HOME ─────────────────────────────────────────────────────────────── */}
       {screen === "home" && (
         <div className="card slide-up">
-          <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div className="home-header">
             <div style={{ fontSize: 52, marginBottom: 10 }}>🎭</div>
-            <h1 className="dp curtain" style={{ fontSize: 48, margin: 0, lineHeight: 1.05 }}>
-              Know Your<br />Humour Quotient
-            </h1>
-            <p className="sn" style={{ color: "#4a4060", fontSize: 14, marginTop: 12, lineHeight: 1.7 }}>
+            <h1 className="dp curtain home-title">Know Your<br />Humour Quotient</h1>
+            <p className="sn home-sub">
               6 wild scenarios. 4 options each — funny, boring, sarcastic, unhinged.<br />
-              <strong style={{ color: "#f59e0b", fontWeight: 500 }}>Can you spot the funny answer? 😏</strong>
+              <strong>Can you spot the funny answer? 😏</strong>
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 28 }}>
+          <div className="type-grid">
             {Object.entries(OPTION_TYPES).map(([key, val]) => (
-              <div key={key} style={{ background: val.bg, border: `1px solid ${val.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
+              <div key={key} className={`type-card ${val.key}`}>
                 <div style={{ fontSize: 20 }}>{val.label.split(" ")[0]}</div>
                 <div>
-                  <div className="sn" style={{ fontSize: 12, fontWeight: 600, color: val.color }}>{val.label.slice(3)}</div>
-                  <div className="sn" style={{ fontSize: 11, color: "#3a3050" }}>+{val.points} pts (revealed after pick)</div>
+                  <div className={`sn type-label ${val.key}`}>{val.label.slice(3)}</div>
+                  <div className="sn type-pts">+{val.points} pts (revealed after pick)</div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label className="sn" style={{ fontSize: 11, color: "#3a3050", letterSpacing: ".1em", display: "block", marginBottom: 8 }}>AI MODEL</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              {[{ id: "claude", label: "Claude", icon: "✦" }, { id: "gemini", label: "Gemini", icon: "✦" }, { id: "openai", label: "OpenAI", icon: "✦" }].map(({ id, label, icon }) => (
-                <button key={id} onClick={() => setProvider(id)} style={{
-                  flex: 1, padding: "10px 0", borderRadius: 10, cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
-                  border: `1.5px solid ${provider === id ? "#f59e0b" : "rgba(255,255,255,.08)"}`,
-                  background: provider === id ? "rgba(245,158,11,.1)" : "transparent",
-                  color: provider === id ? "#f59e0b" : "#3a3050",
-                  transition: "all .15s",
-                }}>
-                  {icon} {label}
+          <div className="field-wrap">
+            <label className="sn field-label">AI MODEL</label>
+            <div className="provider-row">
+              {[{ id: "claude", label: "Claude" }, { id: "gemini", label: "Gemini" }, { id: "openai", label: "OpenAI" }].map(({ id, label }) => (
+                <button key={id} className={`provider-btn ${provider === id ? "active" : ""}`} onClick={() => setProvider(id)}>
+                  ✦ {label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label className="sn" style={{ fontSize: 11, color: "#3a3050", letterSpacing: ".1em", display: "block", marginBottom: 8 }}>YOUR STAGE NAME</label>
+          <div className="field-wrap">
+            <label className="sn field-label">YOUR STAGE NAME</label>
             <input className="name-input" placeholder="Enter your name…" value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && name.trim() && !loading && startGame()}
@@ -474,7 +382,6 @@ export default function App() {
           <button className="btn-main" onClick={startGame} disabled={!name.trim() || loading}>
             {loading ? "Loading…" : "Take The Stage ▶"}
           </button>
-
           <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => navigate("/leaderboard")}>
             🏆 Leaderboard{leaderboard.length > 0 ? ` (${leaderboard.length} players)` : ""}
           </button>
@@ -483,89 +390,77 @@ export default function App() {
 
       {/* ── LOADING ──────────────────────────────────────────────────────────── */}
       {screen === "loading" && (
-        <div className="card" style={{ textAlign: "center", padding: "60px 32px" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🤖</div>
-          <h2 className="dp" style={{ fontSize: 28, color: "#f0e6d0", margin: "0 0 12px" }}>Cooking up chaos…</h2>
-          <p className="sn" style={{ color: "#4a4060", marginBottom: 28 }}>Generating fresh scenarios just for you</p>
+        <div className="card loading-card">
+          <div className="loading-emoji">🤖</div>
+          <h2 className="dp loading-title">Cooking up chaos…</h2>
+          <p className="sn loading-sub">Generating fresh scenarios just for you</p>
           <div className="think-dots"><span /><span /><span /></div>
         </div>
       )}
 
       {/* ── GAME ─────────────────────────────────────────────────────────────── */}
       {screen === "game" && q && (
-        <div className="card" key={animKey} style={{ animation: "slideUp .4s cubic-bezier(.2,1,.4,1) forwards" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <div className="card slide-up" key={animKey}>
+          <div className="game-header">
             <div>
-              <div className="sn" style={{ fontSize: 10, color: "#3a3050", letterSpacing: ".12em" }}>QUESTION</div>
-              <div className="dp" style={{ fontSize: 26, color: "#f0e6d0" }}>
-                {qIdx + 1} <span style={{ color: "#2a2040", fontSize: 16 }}>/ {questions.length}</span>
+              <div className="sn game-counter-label">QUESTION</div>
+              <div className="dp game-counter-value">
+                {qIdx + 1} <span className="game-counter-total">/ {questions.length}</span>
               </div>
             </div>
             <TimerRing value={timeLeft} max={30} />
-            <div style={{ textAlign: "right" }}>
-              <div className="sn" style={{ fontSize: 10, color: "#3a3050", letterSpacing: ".12em" }}>SCORE</div>
-              <div className="dp" style={{ fontSize: 26, color: "#f59e0b" }}>{totalScore}</div>
+            <div>
+              <div className="sn game-score-label">SCORE</div>
+              <div className="dp game-score-value">{totalScore}</div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+          <div className="progress-row">
             {questions.map((_, i) => (
-              <div key={i} className="progress-dot" style={{
-                flex: i === qIdx ? 2.5 : 1,
-                background: i < qIdx ? "#f59e0b" : i === qIdx ? "rgba(245,158,11,.5)" : "#1e1a2e",
-              }} />
+              <div key={i} className={`progress-dot${i < qIdx ? " done" : i === qIdx ? " current" : ""}`}
+                style={{ flex: i === qIdx ? 2.5 : 1 }} />
             ))}
           </div>
 
-          <div style={{ background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.14)", borderRadius: 16, padding: "18px 20px", marginBottom: 20 }}>
-            <div className="sn" style={{ fontSize: 10, color: "#f59e0b", letterSpacing: ".15em", marginBottom: 8 }}>THE SCENARIO</div>
-            <p className="dp" style={{ fontSize: 18, color: "#f0e6d0", margin: 0, lineHeight: 1.55, fontStyle: "italic" }}>
-              "{q.scenario}"
-            </p>
+          <div className="scenario-box">
+            <div className="sn scenario-eyebrow">THE SCENARIO</div>
+            <p className="dp scenario-text">"{q.scenario}"</p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: chosen ? 16 : 0 }}>
+          <div className={`options-list${chosen ? " has-chosen" : ""}`}>
             {q.options.map((opt, i) => {
-              const style = OPTION_TYPES[opt.type];
-              const isChosen = chosen?.type === opt.type;
-              const revealed = !!chosen;
+              const st = OPTION_TYPES[opt.type];
+              const isChosen  = chosen?.type === opt.type;
+              const revealed  = !!chosen;
               return (
                 <button key={i}
-                  className={`opt-btn ${isChosen ? "opt-chosen" : ""}`}
-                  style={{
-                    background: revealed ? (isChosen ? style.bg : "rgba(255,255,255,.01)") : "rgba(255,255,255,.03)",
-                    borderColor: revealed ? (isChosen ? style.color : "rgba(255,255,255,.06)") : "rgba(255,255,255,.1)",
-                    color: revealed ? (isChosen ? style.color : "#3a3050") : "#d0c8e0",
-                    boxShadow: isChosen ? `0 0 20px ${style.color}30` : "none",
-                    opacity: revealed && !isChosen ? 0.4 : 1,
-                  }}
+                  className={`opt-btn${revealed ? ` ${st.key}` : ""}${isChosen ? " chosen" : ""}${revealed && !isChosen ? " dimmed" : ""}`}
+                  style={isChosen ? { boxShadow: `0 0 20px ${st.color}30` } : {}}
                   onClick={() => handlePick(opt)}
                   disabled={!!chosen}
                 >
                   {revealed && (
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", padding: "2px 8px", borderRadius: 4, marginBottom: 6, display: "inline-block", background: isChosen ? `${style.color}25` : "rgba(255,255,255,.04)", color: isChosen ? style.color : "#3a3050" }}>
-                      {style.label}
-                    </div>
+                    <span className={`opt-type-badge ${st.key}`}>{st.label}</span>
                   )}
-                  <div>{opt.text}</div>
+                  <span>{opt.text}</span>
                 </button>
               );
             })}
           </div>
 
           {chosen && (
-            <div className="pop" style={{ background: OPTION_TYPES[chosen.type].bg, border: `1.5px solid ${OPTION_TYPES[chosen.type].border}`, borderRadius: 14, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
+            <div className={`reaction-box pop ${OPTION_TYPES[chosen.type].key}`}>
               <div>
-                <div className="sn" style={{ fontSize: 10, color: OPTION_TYPES[chosen.type].color, letterSpacing: ".1em", marginBottom: 4 }}>
+                <div className={`sn reaction-verdict ${OPTION_TYPES[chosen.type].key}`}>
                   {chosen.type === "FUNNY" ? "COMEDY GOLD" : chosen.type === "SAFE" ? "PLAYS IT SAFE" : chosen.type === "SARCASTIC" ? "SNARKY GENIUS" : "CERTIFIED CHAOS"}
                 </div>
-                <p className="dp" style={{ fontSize: 15, color: "#f0e6d0", margin: 0, fontStyle: "italic", lineHeight: 1.4 }}>
-                  "{q.reaction?.[chosen.type] || "Interesting choice."}"
-                </p>
+                <p className="dp reaction-text">"{q.reaction?.[chosen.type] || "Interesting choice."}"</p>
               </div>
               <div style={{ textAlign: "center", flexShrink: 0 }}>
-                <div className="dp" style={{ fontSize: 32, color: OPTION_TYPES[chosen.type].color, lineHeight: 1 }}>+{OPTION_TYPES[chosen.type].points}</div>
-                <div className="sn" style={{ fontSize: 10, color: "#3a3050" }}>pts</div>
+                <div className={`dp reaction-pts-value`} style={{ color: OPTION_TYPES[chosen.type].color }}>
+                  +{OPTION_TYPES[chosen.type].points}
+                </div>
+                <div className="sn reaction-pts-label">pts</div>
               </div>
             </div>
           )}
@@ -576,62 +471,66 @@ export default function App() {
             </button>
           )}
 
-          <div className="sn" style={{ textAlign: "center", marginTop: 10, fontSize: 11, color: "#2a2040" }}>{name}</div>
+          <div className="sn game-player-name">{name}</div>
         </div>
       )}
 
       {/* ── RESULT ───────────────────────────────────────────────────────────── */}
       {screen === "result" && (
-        <div className="card slide-up" style={{ textAlign: "center" }}>
-          <div className="sn" style={{ fontSize: 11, letterSpacing: ".25em", color: "#3a3050", marginBottom: 10 }}>{name.toUpperCase()} · YOUR RESULTS</div>
-          <div style={{ fontSize: 56, marginBottom: 4 }}>{hqInfo.emoji}</div>
-          <h2 className="dp curtain" style={{ fontSize: 40, margin: "0 0 6px", lineHeight: 1.1 }}>{hqInfo.title}</h2>
-          <p className="sn" style={{ color: "#4a4060", fontSize: 14, marginBottom: 20 }}>{hqInfo.sub}</p>
+        <div className="card slide-up result-card">
+          <div className="sn result-who">{name.toUpperCase()} · YOUR RESULTS</div>
+          <div className="result-emoji">{hqInfo.emoji}</div>
+          <h2 className="dp curtain result-title">{hqInfo.title}</h2>
+          <p className="sn result-sub">{hqInfo.sub}</p>
 
-          <div style={{ background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.18)", borderRadius: 18, padding: "22px", marginBottom: 20 }}>
-            <div className="sn" style={{ fontSize: 10, color: "#f59e0b", letterSpacing: ".2em", marginBottom: 6 }}>HUMOUR QUOTIENT</div>
-            <div className="dp" style={{ fontSize: 72, color: "#f0e6d0", lineHeight: 1 }}>{displayFinalScore}</div>
-            <div className="sn" style={{ fontSize: 13, color: "#3a3050", marginBottom: 10 }}>out of {MAX_SCORE}</div>
+          <div className="score-box">
+            <div className="sn score-box-label">HUMOUR QUOTIENT</div>
+            <div className="dp score-big">{displayFinalScore}</div>
+            <div className="sn score-out-of">out of {MAX_SCORE}</div>
             <div className="score-bar-wrap">
-              <div className="score-bar-fill" style={{ width: `${(displayFinalScore / MAX_SCORE) * 100}%`, background: `linear-gradient(90deg, ${hqInfo.color}, ${hqInfo.color}cc)`, boxShadow: `0 0 12px ${hqInfo.color}60` }} />
+              <div className="score-bar-fill" style={{
+                width: `${(displayFinalScore / MAX_SCORE) * 100}%`,
+                background: `linear-gradient(90deg, ${hqInfo.color}, #963AB1)`,
+                boxShadow: `0 0 12px ${hqInfo.color}60`,
+              }} />
             </div>
           </div>
 
           {dominantStyle && OPTION_TYPES[dominantStyle] && (
-            <div style={{ marginBottom: 20 }}>
-              <div className="sn" style={{ fontSize: 11, color: "#3a3050", letterSpacing: ".1em", marginBottom: 8 }}>YOUR HUMOUR DNA</div>
-              <span style={{ display: "inline-block", padding: "8px 20px", background: OPTION_TYPES[dominantStyle].bg, border: `1px solid ${OPTION_TYPES[dominantStyle].border}`, borderRadius: 99, color: OPTION_TYPES[dominantStyle].color, fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600 }}>
+            <div className="dna-wrap">
+              <div className="sn dna-label">YOUR HUMOUR DNA</div>
+              <span className={`dna-badge ${OPTION_TYPES[dominantStyle].key}`}>
                 {OPTION_TYPES[dominantStyle].label}
               </span>
             </div>
           )}
 
-          <div style={{ marginBottom: 20, textAlign: "left" }}>
-            <div className="sn" style={{ fontSize: 10, color: "#3a3050", letterSpacing: ".1em", marginBottom: 10 }}>ROUND BY ROUND</div>
+          <div className="rounds-wrap">
+            <div className="sn rounds-label">ROUND BY ROUND</div>
             {scores.map((s, i) => {
               const st = OPTION_TYPES[s.type];
               return (
-                <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.04)", borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
-                  <div className="sn" style={{ fontSize: 11, color: "#2a2040", width: 20 }}>Q{i + 1}</div>
+                <div key={i} className="round-row">
+                  <div className="sn round-num">Q{i + 1}</div>
                   <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: st.bg, color: st.color, fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }}>{st.label}</span>
+                    <span className={`round-badge ${st.key}`}>{st.label}</span>
                   </div>
-                  <div className="dp" style={{ fontSize: 18, color: st.color }}>+{s.pts}</div>
+                  <div className={`dp round-pts ${st.key}`}>+{s.pts}</div>
                 </div>
               );
             })}
           </div>
 
           {myRank > 0 && (
-            <div style={{ background: myRank === 1 ? "rgba(245,158,11,.07)" : "rgba(255,255,255,.02)", border: `1px solid ${myRank <= 3 ? "rgba(245,158,11,.3)" : "rgba(255,255,255,.05)"}`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span className="sn" style={{ fontSize: 14, color: "#c0b0d0" }}>
+            <div className={`rank-badge${myRank <= 3 ? " top3" : ""}`}>
+              <span className="sn rank-badge-text">
                 {myRank === 1 ? "🥇 Top of the leaderboard!" : myRank === 2 ? "🥈 So close to #1!" : myRank === 3 ? "🥉 Top 3!" : `#${myRank} on leaderboard`}
               </span>
-              <span className="dp" style={{ fontSize: 24, color: "#f59e0b" }}>#{myRank}</span>
+              <span className="dp rank-badge-num">#{myRank}</span>
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="result-actions">
             <button className="btn-main" style={{ flex: 1 }} onClick={() => setScreen("home")}>Play Again ↺</button>
             <button className="btn-ghost" onClick={() => navigate("/leaderboard")}>🏆 Board</button>
           </div>
