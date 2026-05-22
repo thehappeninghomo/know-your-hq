@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
-const { Pool } = require("pg");
 require("dotenv").config();
 
 const app = express();
@@ -10,32 +9,78 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ── Database ──────────────────────────────────────────────────────────────────
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+// ── Database (SQLite locally, PostgreSQL on Render) ────────────────────────────
+const usePostgres = !!process.env.DATABASE_URL;
+let db, pool;
 
-pool.query(`
-  CREATE TABLE IF NOT EXISTS leaderboard (
-    id         BIGSERIAL PRIMARY KEY,
-    name       TEXT    NOT NULL,
-    score      INTEGER NOT NULL,
-    title      TEXT    NOT NULL,
-    emoji      TEXT    NOT NULL,
-    time       TEXT    NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  )
-`).then(() => console.log("DB ready"))
-  .catch(err => console.error("DB init failed:", err.message));
+if (usePostgres) {
+  const { Pool } = require("pg");
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS leaderboard (
+      id         BIGSERIAL PRIMARY KEY,
+      name       TEXT    NOT NULL,
+      score      INTEGER NOT NULL,
+      title      TEXT    NOT NULL,
+      emoji      TEXT    NOT NULL,
+      time       TEXT    NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).then(() => console.log("PostgreSQL ready"))
+    .catch(err => console.error("PostgreSQL init failed:", err.message));
+} else {
+  const Database = require("better-sqlite3");
+  db = new Database("leaderboard.db");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leaderboard (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL,
+      score      INTEGER NOT NULL,
+      title      TEXT    NOT NULL,
+      emoji      TEXT    NOT NULL,
+      time       TEXT    NOT NULL
+    )
+  `);
+  console.log("SQLite ready");
+}
 
-// ── Leaderboard ───────────────────────────────────────────────────────────────
-app.get("/api/leaderboard", async (_req, res) => {
-  try {
+// ── Leaderboard helpers ────────────────────────────────────────────────────────
+async function getLeaderboard() {
+  if (usePostgres) {
     const { rows } = await pool.query(
       "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC"
     );
-    res.json({ leaderboard: rows });
+    return rows;
+  }
+  return db.prepare("SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC").all();
+}
+
+async function insertEntry(name, score, title, emoji, time) {
+  if (usePostgres) {
+    await pool.query(
+      "INSERT INTO leaderboard (name, score, title, emoji, time) VALUES ($1, $2, $3, $4, $5)",
+      [name, score, title, emoji, time]
+    );
+  } else {
+    db.prepare("INSERT INTO leaderboard (name, score, title, emoji, time) VALUES (?, ?, ?, ?, ?)").run(name, score, title, emoji, time);
+  }
+}
+
+async function clearLeaderboard() {
+  if (usePostgres) {
+    await pool.query("DELETE FROM leaderboard");
+  } else {
+    db.prepare("DELETE FROM leaderboard").run();
+  }
+}
+
+// ── Leaderboard routes ─────────────────────────────────────────────────────────
+app.get("/api/leaderboard", async (_req, res) => {
+  try {
+    res.json({ leaderboard: await getLeaderboard() });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch leaderboard" });
@@ -47,14 +92,8 @@ app.post("/api/leaderboard", async (req, res) => {
   if (!name || score == null || !title || !emoji || !time)
     return res.status(400).json({ error: "Missing required fields" });
   try {
-    await pool.query(
-      "INSERT INTO leaderboard (name, score, title, emoji, time) VALUES ($1, $2, $3, $4, $5)",
-      [name, score, title, emoji, time]
-    );
-    const { rows } = await pool.query(
-      "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC"
-    );
-    res.json({ leaderboard: rows });
+    await insertEntry(name, score, title, emoji, time);
+    res.json({ leaderboard: await getLeaderboard() });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to save entry" });
@@ -63,7 +102,7 @@ app.post("/api/leaderboard", async (req, res) => {
 
 app.delete("/api/leaderboard", async (_req, res) => {
   try {
-    await pool.query("DELETE FROM leaderboard");
+    await clearLeaderboard();
     res.json({ leaderboard: [] });
   } catch (err) {
     console.error(err);

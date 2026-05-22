@@ -1,59 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-
-// ── API base — reads from env, falls back to same-origin proxy ────────────────
-const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
-
-async function fetchLeaderboard() {
-  const res = await fetch(`${API_BASE}/api/leaderboard`);
-  const data = await res.json();
-  return data.leaderboard || [];
-}
-
-// ── Claude API helper — calls OUR backend, not Anthropic directly ─────────────
-async function callClaude(body) {
-  const res = await fetch(`${API_BASE}/api/claude`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = err.error?.message ?? (typeof err.error === "string" ? err.error : null) ?? `Server error ${res.status}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
-
-// ── OpenAI API helper — calls OUR backend, not OpenAI directly ───────────────
-async function callOpenAI(body) {
-  const res = await fetch(`${API_BASE}/api/openai`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = err.error?.message ?? (typeof err.error === "string" ? err.error : null) ?? `Server error ${res.status}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
-
-// ── Gemini API helper — calls OUR backend, not Google directly ────────────────
-async function callGemini(body) {
-  const res = await fetch(`${API_BASE}/api/gemini`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = err.error?.message ?? (typeof err.error === "string" ? err.error : null) ?? `Server error ${res.status}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
+import { fetchLeaderboard, saveScore, callClaude, callGemini, callOpenAI } from "./api";
 
 // ── Option types ──────────────────────────────────────────────────────────────
 const OPTION_TYPES = {
@@ -377,13 +324,8 @@ export default function App() {
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       try {
-        const res = await fetch(`${API_BASE}/api/leaderboard`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(entry),
-        });
-        const data = await res.json();
-        setLeaderboard(data.leaderboard || []);
+        const updated = await saveScore(entry);
+        setLeaderboard(updated);
       } catch {
         setLeaderboard(lb => [...lb, { ...entry, id: Date.now() }].sort((a, b) => b.score - a.score).slice(0, 10));
       }
@@ -415,9 +357,6 @@ export default function App() {
       fontFamily: "Georgia, serif",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600&display=swap');
-        .dp { font-family: 'Playfair Display', Georgia, serif; }
-        .sn { font-family: 'DM Sans', sans-serif; }
         .spotlight { position:fixed;inset:0;pointer-events:none;z-index:0;
           background:radial-gradient(ellipse 80% 40% at 50% 0%,rgba(245,158,11,.07) 0%,transparent 65%),
                      radial-gradient(ellipse 40% 50% at 90% 90%,rgba(167,139,250,.05) 0%,transparent 60%); }
@@ -694,47 +633,7 @@ export default function App() {
 
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn-main" style={{ flex: 1 }} onClick={() => setScreen("home")}>Play Again ↺</button>
-            <button className="btn-ghost" onClick={() => setScreen("leaderboard")}>🏆 Board</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── LEADERBOARD ──────────────────────────────────────────────────────── */}
-      {screen === "leaderboard" && (
-        <div className="card slide-up" style={{ maxWidth: 560 }}>
-          <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <h2 className="dp curtain" style={{ fontSize: 44, margin: 0 }}>🏆 Comedy Rankings</h2>
-            <p className="sn" style={{ color: "#4a4060", marginTop: 8, fontSize: 14 }}>Ranked by Humour Quotient score</p>
-          </div>
-          {leaderboard.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 0", color: "#2a2040" }} className="sn">No comedians yet. Be the first!</div>
-          ) : (
-            <div style={{ marginBottom: 24 }}>
-              {leaderboard.map((e, i) => {
-                const isMe = e.name === name && e.score === displayFinalScore;
-                return (
-                  <div key={e.id} className={`lb-row ${isMe ? "me" : ""} ${i === 0 ? "top" : ""}`}>
-                    <div style={{ fontSize: 20, width: 30, textAlign: "center", flexShrink: 0 }}>
-                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span className="sn" style={{ fontSize: 13, color: "#2a2040" }}>#{i + 1}</span>}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div className="sn" style={{ fontSize: 15, fontWeight: 600, color: isMe ? "#f59e0b" : "#e0d0f0" }}>
-                        {e.name} {isMe && <span style={{ fontSize: 10, color: "#f59e0b60" }}>← you</span>}
-                      </div>
-                      <div className="sn" style={{ fontSize: 11, color: "#2a2040", marginTop: 2 }}>{e.emoji} {e.title} · {e.time}</div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div className="dp" style={{ fontSize: 26, color: i === 0 ? "#f59e0b" : "#c0b0d0" }}>{e.score}</div>
-                      <div className="sn" style={{ fontSize: 10, color: "#2a2040" }}>/ {MAX_SCORE}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn-main" style={{ flex: 1 }} onClick={() => setScreen("home")}>Play ▶</button>
-            {displayFinalScore > 0 && <button className="btn-ghost" onClick={() => setScreen("result")}>← My Result</button>}
+            <button className="btn-ghost" onClick={() => navigate("/leaderboard")}>🏆 Board</button>
           </div>
         </div>
       )}

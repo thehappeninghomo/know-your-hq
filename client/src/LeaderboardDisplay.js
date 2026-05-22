@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
+import { fetchLeaderboard } from "./api";
 
-const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
 const MAX_SCORE = 6 * 25;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -10,9 +10,8 @@ export default function LeaderboardDisplay() {
 
   async function refresh() {
     try {
-      const res = await fetch(`${API_BASE}/api/leaderboard`);
-      const data = await res.json();
-      setEntries(data.leaderboard || []);
+      const data = await fetchLeaderboard();
+      setEntries(data);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     } catch {}
   }
@@ -30,9 +29,6 @@ export default function LeaderboardDisplay() {
       padding: "48px 24px", fontFamily: "Georgia, serif",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;600&display=swap');
-        .dp  { font-family: 'Playfair Display', Georgia, serif; }
-        .sn  { font-family: 'DM Sans', sans-serif; }
         .row {
           display: flex; align-items: center; gap: 18px;
           background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06);
