@@ -1,27 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@400;500;600&display=swap');
 
 :root {
-  --bg-base:    #0D0B14;
-  --bg-raised:  #151220;
-  --surface:    #1E1A2E;
-  --red:        #FF4020;
-  --red-dim:    rgba(255, 64, 32, 0.22);
-  --red-border: rgba(255, 64, 32, 0.55);
-  --purple:     #BF40FF;
-  --purple-dim: rgba(191, 64, 255, 0.18);
-  --purple-border: rgba(191, 64, 255, 0.55);
-  --blue:       #3D7FFF;
-  --blue-light: #6DA0FF;
-  --blue-dim:   rgba(61, 127, 255, 0.18);
-  --blue-border:rgba(61, 127, 255, 0.55);
-  --pink:       #FF3D80;
-  --pink-dim:   rgba(255, 61, 128, 0.18);
-  --pink-border:rgba(255, 61, 128, 0.55);
-  --text:       #F8F4FF;
-  --text-sub:   #C4BAD8;
-  --text-muted: #9080B0;
-  --border:     rgba(255, 255, 255, 0.12);
-  --border-mid: rgba(255, 255, 255, 0.22);
+  --bg-base:    #080B12;
+  --bg-raised:  #0E1220;
+  --surface:    #141B2E;
+
+  /* Primary accent — warm gold (scores, top rank, "funny") */
+  --red:        #F0B429;
+  --red-dim:    rgba(240, 180, 41, 0.16);
+  --red-border: rgba(240, 180, 41, 0.52);
+
+  /* Sarcastic — electric violet */
+  --purple:     #A855F7;
+  --purple-dim: rgba(168, 85, 247, 0.16);
+  --purple-border: rgba(168, 85, 247, 0.52);
+
+  /* Safe — emerald */
+  --blue:       #10B981;
+  --blue-light: #34D399;
+  --blue-dim:   rgba(16, 185, 129, 0.16);
+  --blue-border:rgba(16, 185, 129, 0.52);
+
+  /* Unhinged — rose coral */
+  --pink:       #FB7185;
+  --pink-dim:   rgba(251, 113, 133, 0.16);
+  --pink-border:rgba(251, 113, 133, 0.52);
+
+  --text:       #F0ECFF;
+  --text-sub:   #B8C0D8;
+  --text-muted: #6878A0;
+  --border:     rgba(255, 255, 255, 0.10);
+  --border-mid: rgba(255, 255, 255, 0.20);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

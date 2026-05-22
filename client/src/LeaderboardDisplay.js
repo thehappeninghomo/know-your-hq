@@ -19,7 +19,7 @@ export default function LeaderboardDisplay() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 10000);
+    const id = setInterval(refresh, 600000);
     return () => clearInterval(id);
   }, []);
 
@@ -35,7 +35,7 @@ export default function LeaderboardDisplay() {
 
         <div className="lb-live">
           <span className="lb-live-dot" />
-          Live{lastUpdated ? ` · updated ${lastUpdated}` : ""} · refreshes every 10s
+          Live{lastUpdated ? ` · updated ${lastUpdated}` : ""} · refreshes every 10 min
         </div>
 
         {entries.length === 0 ? (
