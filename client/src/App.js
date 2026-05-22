@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 // ── API base — reads from env, falls back to same-origin proxy ────────────────
 const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
@@ -281,6 +282,7 @@ function Toast({ toast, onDismiss }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const navigate = useNavigate();
   const [screen, setScreen]           = useState("home");
   const [name, setName]               = useState("");
   const [provider, setProvider]       = useState("claude");
@@ -534,7 +536,7 @@ export default function App() {
             {loading ? "Loading…" : "Take The Stage ▶"}
           </button>
 
-          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => window.location.href = "/leaderboard"}>
+          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => navigate("/leaderboard")}>
             🏆 Leaderboard{leaderboard.length > 0 ? ` (${leaderboard.length} players)` : ""}
           </button>
         </div>

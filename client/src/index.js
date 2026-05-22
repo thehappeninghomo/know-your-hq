@@ -1,13 +1,17 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import LeaderboardDisplay from "./LeaderboardDisplay";
-
-const isDisplay = window.location.pathname === "/leaderboard";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    {isDisplay ? <LeaderboardDisplay /> : <App />}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/leaderboard" element={<LeaderboardDisplay />} />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>
 );
