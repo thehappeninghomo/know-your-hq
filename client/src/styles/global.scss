@@ -1,0 +1,108 @@
+// ── Color palette ───────────────────────────────────────────────────────────
+$bg-base: #0d0d14;
+$bg-raised: #141420;
+
+$red: #d22d1e;
+$red-dark: #a82418;
+$purple: #963ab1;
+$purple-dark: #7b2d9a;
+$blue: #4a7ae0;
+$blue-dark: #20469b;
+$pink: #c4356a;
+$gold: #f0b429;
+$silver: #e2e8f0;
+$bronze: #c66635;
+$gray: #8099aa;
+$slate: #4a4455;
+$teal: #14b8a6;
+$coral: #f97316;
+$slate-mid: #f9a8d4;
+
+$text: #f2eff8;
+$text-sub: #c0b8d4;
+$text-muted: #7870a0;
+
+$border: rgba(#fff, 0.1);
+$border-mid: rgba(#fff, 0.18);
+$fill: rgba(#fff, 0.04);
+$fill-soft: rgba(#fff, 0.03);
+
+// CSS custom properties — JSX consumes these via inline style={{ background: "var(--red)" }}
+:root {
+  --bg-base: #{$bg-base};
+  --bg-raised: #{$bg-raised};
+
+  --red: #{$red};
+  --red-dim: #{rgba($red, 0.15)};
+  --red-border: #{rgba($red, 0.45)};
+  --purple: #{$purple};
+  --purple-dim: #{rgba($purple, 0.15)};
+  --purple-border: #{rgba($purple, 0.45)};
+  --blue: #{$blue};
+  --blue-dim: #{rgba($blue, 0.16)};
+  --blue-border: #{rgba($blue, 0.45)};
+  --pink: #{$pink};
+  --gold: #{$gold};
+  --silver: #{$silver};
+  --bronze: #{$bronze};
+  --gray: #{$gray};
+  --slate: #{$slate};
+  --teal: #{$teal};
+  --coral: #{$coral};
+  --slate-mid: #{$slate-mid};
+
+  --text: #{$text};
+  --text-sub: #{$text-sub};
+  --text-muted: #{$text-muted};
+
+  --border: #{$border};
+  --border-mid: #{$border-mid};
+  --fill: #{$fill};
+  --fill-soft: #{$fill-soft};
+}
+
+// ── Type tokens (drive .opt-btn, .type-card, .type-badge, .reaction-box) ────
+$types: (
+  funny: $gold,
+  safe: $slate-mid,
+  sarcastic: $teal,
+  unhinged: $coral,
+);
+
+@each $name, $c in $types {
+  .#{$name} {
+    --fg: #{$c};
+    --bg: #{rgba($c, 0.15)};
+    --bd: #{rgba($c, 0.45)};
+  }
+}
+
+// ── Base ────────────────────────────────────────────────────────────────────
+body {
+  background: $bg-base;
+  color: $text;
+  font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dp {
+  font-family: "Playfair Display", Georgia, serif;
+}
+.sn {
+  font-family: "DM Sans", sans-serif;
+}
+
+// Bootstrap's default .text-muted is too dark on our background
+.text-muted {
+  color: $text-muted !important;
+}
+
+// ── Gradient display heading ────────────────────────────────────────────────
+.curtain {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  background: linear-gradient(90deg, $red, $purple 52%, $blue-dark);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

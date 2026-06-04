@@ -1,0 +1,85 @@
+$medals: (
+  gold: #f0b429,
+  silver: #e2e8f0,
+  bronze: #c66635,
+);
+
+.lb-page {
+  background: var(--bg-base);
+}
+
+.lb-title {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  font-size: clamp(36px, 6.3vw, 72px);
+  line-height: 1.05;
+  background: linear-gradient(90deg, var(--red), var(--purple) 52%, var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lb-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: lbPulse 2s ease-in-out infinite;
+}
+
+.lb-board {
+  background: transparent;
+}
+
+.lb-row {
+  background: var(--fill);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 18px;
+  margin-bottom: 12px;
+  animation: lbFadeIn 0.4s ease forwards;
+
+  @each $name, $c in $medals {
+    &.#{$name} {
+      background: linear-gradient(90deg, rgba($c, 0.22), rgba($c, 0.04));
+      border-color: rgba($c, 0.55);
+      .lb-name,
+      .lb-score {
+        color: $c;
+      }
+    }
+  }
+}
+
+.lb-name {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(20px, 2.8vw, 32px);
+}
+.lb-score {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(28px, 4vw, 52px);
+  line-height: 1;
+}
+
+@keyframes lbFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lbPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.4);
+  }
+}

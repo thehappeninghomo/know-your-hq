@@ -1,14 +1,62 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchLeaderboard, saveScore, callClaude, callGemini, callOpenAI } from "./api";
-import "./styles/App.css";
+import { fetchLeaderboard, saveScore, callClaude } from "./api";
+import "./styles/App.scss";
 
-// ── Option types ──────────────────────────────────────────────────────────────
+// ── Brand colors (mirror the CSS tokens in styles/global.scss) ──────────────
+const COLORS = {
+  red:        "#D22D1E",
+  redDark:    "#A82418",
+  purple:     "#963AB1",
+  purpleDark: "#7B2D9A",
+  pink:       "#C4356A",
+  blue:       "#4A7AE0",
+  blueDark:   "#20469B",
+  gold:       "#F0B429",
+  gray:       "#8099AA",
+  slate:      "#4A4455",
+  teal:       "#14B8A6",
+  coral:      "#F97316",
+  slateMid:   "#F9A8D4",
+  white:      "#ffffff",
+};
+
+const BRAIN_WORDS = [
+  { text: "Wit",       color: "red",    top:  4, left: 22, delay:  0    },
+  { text: "Irony",     color: "purple", top:  8, left: 60, delay: -0.2  },
+  { text: "Deadpan",   color: "pink",   top: 14, left: 14, delay: -0.4  },
+  { text: "Pun",       color: "gold",   top: 16, left: 78, delay: -0.6  },
+  { text: "Absurd",    color: "pink",   top: 22, left: 36, delay: -0.8  },
+  { text: "Funny",     color: "red",    top: 24, left: 84, delay: -1.0  },
+  { text: "Laugh",     color: "blue",   top: 30, left:  8, delay: -1.2  },
+  { text: "Banter",    color: "gold",   top: 32, left: 64, delay: -1.4  },
+  { text: "Twist",     color: "purple", top: 38, left: 86, delay: -1.6  },
+  { text: "Punchline", color: "gold",   top: 40, left: 12, delay: -1.8  },
+  { text: "Smile",     color: "pink",   top: 46, left: 90, delay: -2.0  },
+  { text: "Satire",    color: "blue",   top: 50, left:  6, delay: -2.2  },
+  { text: "Improv",    color: "purple", top: 54, left: 92, delay: -2.4  },
+  { text: "Hilarious", color: "red",    top: 60, left: 10, delay: -2.6  },
+  { text: "Gag",       color: "gold",   top: 62, left: 84, delay: -2.8  },
+  { text: "Sarcasm",   color: "blue",   top: 68, left: 16, delay: -3.0  },
+  { text: "Goofy",     color: "pink",   top: 70, left: 70, delay: -3.2  },
+  { text: "Parody",    color: "purple", top: 76, left: 30, delay: -3.4  },
+  { text: "Giggle",    color: "red",    top: 78, left: 86, delay: -3.6  },
+  { text: "Chaos",     color: "pink",   top: 82, left: 10, delay: -3.8  },
+  { text: "Quirky",    color: "purple", top: 84, left: 56, delay: -4.0  },
+  { text: "Comedy",    color: "blue",   top: 88, left: 80, delay: -4.2  },
+  { text: "Humour",    color: "red",    top: 92, left: 26, delay: -4.4  },
+  { text: "Dry",       color: "gold",   top: 94, left: 64, delay: -4.6  },
+  { text: "Joke",      color: "purple", top: 96, left: 88, delay: -4.8  },
+  { text: "Meme",      color: "gold",   top:  2, left: 88, delay: -1.5  },
+  { text: "Witty",     color: "pink",   top:  2, left: 40, delay: -2.5  },
+  { text: "Chuckle",   color: "gold",   top: 98, left: 18, delay: -3.5  },
+];
+
 const OPTION_TYPES = {
-  FUNNY:    { points: 25, color: "#D22D1E", label: "😂 Genuinely Funny",    key: "funny"     },
-  SAFE:     { points: 10, color: "#4A7AE0", label: "😐 Safe & Boring",      key: "safe"      },
-  SARCASTIC:{ points: 18, color: "#963AB1", label: "😏 Sarcastic",          key: "sarcastic" },
-  UNHINGED: { points: 15, color: "#C4356A", label: "🤪 Completely Unhinged", key: "unhinged"  },
+  FUNNY:    { points: 25, color: COLORS.gold,     label: "😂 Genuinely Funny",    key: "funny"     },
+  SARCASTIC:{ points: 18, color: COLORS.teal,     label: "😏 Sarcastic",          key: "sarcastic" },
+  UNHINGED: { points: 15, color: COLORS.coral,    label: "🤪 Completely Unhinged", key: "unhinged"  },
+  SAFE:     { points: 10, color: COLORS.slateMid, label: "😐 Safe & Boring",      key: "safe"      },
 };
 
 const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Each has 4 answer options.
@@ -43,30 +91,7 @@ function parseQuestions(raw) {
   }
 }
 
-async function generateQuestions(provider = "claude") {
-  if (provider === "gemini") {
-    const data = await callGemini({
-      model: "gemini-2.0-flash",
-      contents: [{ parts: [{ text: QUESTIONS_PROMPT }] }],
-      generationConfig: { temperature: 1.0 },
-    });
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
-    return parseQuestions(raw);
-  }
-
-  if (provider === "openai") {
-    const data = await callOpenAI({
-      model: "gpt-4o",
-      temperature: 1.0,
-      messages: [
-        { role: "system", content: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.` },
-        { role: "user", content: QUESTIONS_PROMPT },
-      ],
-    });
-    const raw = data.choices?.[0]?.message?.content?.trim() || "[]";
-    return parseQuestions(raw);
-  }
-
+async function generateQuestions() {
   const data = await callClaude({
     model: "claude-sonnet-4-5",
     max_tokens: 3000,
@@ -77,7 +102,6 @@ async function generateQuestions(provider = "claude") {
   return parseQuestions(raw);
 }
 
-// ── Fallback questions ────────────────────────────────────────────────────────
 const FALLBACK_QUESTIONS = [
   {
     scenario: "You accidentally liked your ex's 3-year-old Instagram photo at 2am. They've seen it. What do you do?",
@@ -141,15 +165,14 @@ const FALLBACK_QUESTIONS = [
   },
 ];
 
-// ── HQ title ──────────────────────────────────────────────────────────────────
 function getHQTitle(score, maxScore) {
   const pct = score / maxScore;
-  if (pct >= 0.88) return { title: "COMEDY LEGEND",      sub: "You could headline a show.",       emoji: "🌟", color: "#D22D1E" };
-  if (pct >= 0.72) return { title: "CERTIFIED FUNNY",    sub: "The room genuinely loves you.",     emoji: "😂", color: "#C4356A" };
-  if (pct >= 0.55) return { title: "WIT WITH POTENTIAL", sub: "Good instincts, needs polish.",     emoji: "😄", color: "#963AB1" };
-  if (pct >= 0.38) return { title: "ACCIDENTAL COMIC",   sub: "Funny without meaning to be.",      emoji: "🙃", color: "#963AB1" };
-  if (pct >= 0.20) return { title: "HUMOUR PADAWAN",     sub: "The force is… still loading.",      emoji: "🙂", color: "#4A7AE0" };
-  return              { title: "CHRONICALLY SERIOUS",    sub: "Have you tried laughing once?",      emoji: "😑", color: "#4A4455" };
+  if (pct >= 0.88) return { title: "COMEDY LEGEND",      sub: "You could headline a show.",       emoji: "🌟", color: COLORS.red    };
+  if (pct >= 0.72) return { title: "CERTIFIED FUNNY",    sub: "The room genuinely loves you.",     emoji: "😂", color: COLORS.pink   };
+  if (pct >= 0.55) return { title: "WIT WITH POTENTIAL", sub: "Good instincts, needs polish.",     emoji: "😄", color: COLORS.purple };
+  if (pct >= 0.38) return { title: "ACCIDENTAL COMIC",   sub: "Funny without meaning to be.",      emoji: "🙃", color: COLORS.purple };
+  if (pct >= 0.20) return { title: "HUMOUR PADAWAN",     sub: "The force is… still loading.",      emoji: "🙂", color: COLORS.blue   };
+  return              { title: "CHRONICALLY SERIOUS",    sub: "Have you tried laughing once?",      emoji: "😑", color: COLORS.slate  };
 }
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
@@ -157,7 +180,7 @@ function Confetti({ active }) {
   const pieces = useRef(Array.from({ length: 70 }, (_, i) => ({
     id: i,
     x: Math.random() * 100,
-    color: ["#D22D1E","#963AB1","#20469B","#C4356A","#4A7AE0","#fff","#A82418","#7B2D9A"][i % 8],
+    color: [COLORS.red, COLORS.purple, COLORS.blueDark, COLORS.pink, COLORS.blue, COLORS.white, COLORS.redDark, COLORS.purpleDark][i % 8],
     delay: Math.random() * 1.4,
     size: 7 + Math.random() * 7,
     dur: 1.6 + Math.random() * 1.2,
@@ -181,21 +204,26 @@ function Confetti({ active }) {
 // ── Timer ring ────────────────────────────────────────────────────────────────
 function TimerRing({ value, max = 30 }) {
   const r = 26, circ = 2 * Math.PI * r;
-  const color = value > 15 ? "#D22D1E" : value > 8 ? "#963AB1" : "#C4356A";
   return (
-    <svg width={64} height={64} viewBox="0 0 64 64" style={{ filter: `drop-shadow(0 0 8px ${color}60)` }}>
+    <svg width={64} height={64} viewBox="0 0 64 64" style={{ filter: `drop-shadow(0 0 8px ${COLORS.purple}60)` }}>
+      <defs>
+        <linearGradient id="timerGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={COLORS.red} />
+          <stop offset="52%" stopColor={COLORS.purple} />
+          <stop offset="100%" stopColor={COLORS.blue} />
+        </linearGradient>
+      </defs>
       <circle cx={32} cy={32} r={r} fill="none" stroke="#1A181B" strokeWidth={5} />
-      <circle cx={32} cy={32} r={r} fill="none" stroke={color} strokeWidth={5}
+      <circle cx={32} cy={32} r={r} fill="none" stroke="url(#timerGrad)" strokeWidth={5}
         strokeDasharray={circ} strokeDashoffset={circ * (1 - value / max)}
         strokeLinecap="round" transform="rotate(-90 32 32)"
-        style={{ transition: "stroke-dashoffset 1s linear, stroke .3s" }} />
-      <text x={32} y={37} textAnchor="middle" fill={color}
-        style={{ fontFamily: "serif", fontSize: 18, fontWeight: 700 }}>{value}</text>
+        style={{ transition: "stroke-dashoffset 1s linear" }} />
+      <text x={32} y={37} textAnchor="middle" fill="#fff" className="dp fw-bold" style={{ fontSize: 18 }}>{value}</text>
     </svg>
   );
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// ── Toast (Bootstrap .toast component, brand-themed) ─────────────────────────
 function Toast({ toast, onDismiss }) {
   useEffect(() => {
     if (!toast) return;
@@ -205,10 +233,18 @@ function Toast({ toast, onDismiss }) {
   if (!toast) return null;
   const icons = { error: "✗", warning: "⚡", info: "✦" };
   return (
-    <div className={`toast ${toast.type}`}>
-      <span className="toast-icon">{icons[toast.type] || "✦"}</span>
-      <p className="toast-msg">{toast.message}</p>
-      <button className="toast-close" onClick={onDismiss}>×</button>
+    <div
+      className={`toast toast-stage show position-fixed bottom-0 end-0 m-3 ${toast.type}`}
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      style={{ zIndex: 1090 }}
+    >
+      <div className="toast-body d-flex align-items-start gap-2">
+        <span className="fs-6 lh-1">{icons[toast.type] || "✦"}</span>
+        <p className="m-0 flex-grow-1 small">{toast.message}</p>
+        <button type="button" className="btn-close btn-close-white ms-2" onClick={onDismiss} aria-label="Close" />
+      </div>
     </div>
   );
 }
@@ -218,7 +254,6 @@ export default function App() {
   const navigate = useNavigate();
   const [screen, setScreen]           = useState("home");
   const [name, setName]               = useState("");
-  const [provider, setProvider]       = useState("claude");
   const [questions, setQuestions]     = useState([]);
   const [loading, setLoading]         = useState(false);
   const [toast, setToast]             = useState(null);
@@ -268,11 +303,10 @@ export default function App() {
     setScreen("loading");
     let qs;
     try {
-      qs = await generateQuestions(provider);
+      qs = await generateQuestions();
     } catch {
       qs = FALLBACK_QUESTIONS;
-      const label = provider === "claude" ? "Claude" : provider === "gemini" ? "Gemini" : "OpenAI";
-      setToast({ type: "warning", message: `${label} unavailable — using built-in questions` });
+      setToast({ type: "warning", message: "Claude unavailable — using built-in questions" });
     }
     setLoading(false);
     setQuestions(qs);
@@ -331,208 +365,258 @@ export default function App() {
   const dominantStyle = Object.entries(styleCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "FUNNY";
 
   return (
-    <div className="app-wrap">
-      <div className="spotlight" />
+    <div className="app-wrap min-vh-100 d-flex align-items-center justify-content-center p-3 position-relative overflow-hidden">
       <Confetti active={showConfetti} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
       {/* ── HOME ─────────────────────────────────────────────────────────────── */}
       {screen === "home" && (
-        <div className="card slide-up">
-          <div className="home-header">
-            <div style={{ fontSize: 52, marginBottom: 10 }}>🎭</div>
-            <h1 className="dp curtain home-title">Know Your<br />Humour Quotient</h1>
-            <p className="sn home-sub">
-              6 wild scenarios. 4 options each — funny, boring, sarcastic, unhinged.<br />
-              <strong>Can you spot the funny answer? 😏</strong>
-            </p>
-          </div>
-
-          <div className="type-grid">
-            {Object.entries(OPTION_TYPES).map(([key, val]) => (
-              <div key={key} className={`type-card ${val.key}`}>
-                <div style={{ fontSize: 20 }}>{val.label.split(" ")[0]}</div>
-                <div>
-                  <div className={`sn type-label ${val.key}`}>{val.label.slice(3)}</div>
-                  <div className="sn type-pts">+{val.points} pts (revealed after pick)</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="field-wrap">
-            <label className="sn field-label">AI MODEL</label>
-            <div className="provider-row">
-              {[{ id: "claude", label: "Claude" }, { id: "gemini", label: "Gemini" }, { id: "openai", label: "OpenAI" }].map(({ id, label }) => (
-                <button key={id} className={`provider-btn ${provider === id ? "active" : ""}`} onClick={() => setProvider(id)}>
-                  ✦ {label}
-                </button>
+        <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }}>
+          <div className="row g-0">
+            <div className="col-md-6 home-stage pane-divider position-relative overflow-hidden d-flex align-items-center justify-content-center" aria-hidden="true">
+              <svg className="brain-svg" viewBox="0 0 200 200">
+                <g className="brain-edges">
+                  <path d="M100 20 L156.6 43.4" />
+                  <path d="M156.6 43.4 L180 100" />
+                  <path d="M180 100 L156.6 156.6" />
+                  <path d="M156.6 156.6 L100 180" />
+                  <path d="M100 180 L43.4 156.6" />
+                  <path d="M43.4 156.6 L20 100" />
+                  <path d="M20 100 L43.4 43.4" />
+                  <path d="M43.4 43.4 L100 20" />
+                  <path d="M100 20    L100 100" />
+                  <path d="M156.6 43.4  L100 100" />
+                  <path d="M180 100   L100 100" />
+                  <path d="M156.6 156.6 L100 100" />
+                  <path d="M100 180   L100 100" />
+                  <path d="M43.4 156.6  L100 100" />
+                  <path d="M20 100    L100 100" />
+                  <path d="M43.4 43.4   L100 100" />
+                  <path d="M100 20    L156.6 156.6" />
+                  <path d="M156.6 43.4  L100 180" />
+                  <path d="M180 100   L43.4 156.6" />
+                  <path d="M156.6 156.6 L20 100" />
+                  <path d="M100 180   L43.4 43.4" />
+                  <path d="M43.4 156.6  L100 20" />
+                  <path d="M20 100    L156.6 43.4" />
+                  <path d="M43.4 43.4   L180 100" />
+                </g>
+                <g className="brain-nodes">
+                  <circle className="n1" cx="100"   cy="20"    r="6" />
+                  <circle className="n2" cx="156.6" cy="43.4"  r="6" />
+                  <circle className="n3" cx="180"   cy="100"   r="6" />
+                  <circle className="n4" cx="156.6" cy="156.6" r="6" />
+                  <circle className="n5" cx="100"   cy="180"   r="6" />
+                  <circle className="n6" cx="43.4"  cy="156.6" r="6" />
+                  <circle className="n7" cx="20"    cy="100"   r="6" />
+                  <circle className="n8" cx="43.4"  cy="43.4"  r="6" />
+                  <circle className="center" cx="100" cy="100" r="10" />
+                </g>
+              </svg>
+              {BRAIN_WORDS.map((w, i) => (
+                <span key={i} className={`brain-word ${w.color}`} style={{
+                  top: `${w.top}%`, left: `${w.left}%`,
+                  animationDelay: `${w.delay}s`,
+                }}>{w.text}</span>
               ))}
             </div>
-          </div>
 
-          <div className="field-wrap">
-            <label className="sn field-label">YOUR STAGE NAME</label>
-            <input className="name-input" placeholder="Enter your name…" value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && name.trim() && !loading && startGame()}
-              maxLength={20} autoFocus />
-          </div>
+            <div className="col-md-6 card-body p-4 p-md-5 d-flex flex-column justify-content-center">
+              <div className="text-center mb-3">
+                <img className="d-block mx-auto mb-2" src="https://imgcdn.analyticsvidhya.com/dhs/av_dhs_logo.svg" alt="Analytics Vidhya DataHack Summit" style={{ height: 52 }} />
+                <h1 className="dp curtain display-5 fw-bolder lh-1 m-0">Know Your<br />Humour Quotient</h1>
+                <p className="sn text-muted mt-2 mb-0 small lh-base">
+                  6 wild scenarios. 4 options each — funny, boring, sarcastic, unhinged.<br />
+                  <strong className="fw-medium">Can you spot the funny answer?</strong>
+                </p>
+              </div>
 
-          <button className="btn-main" onClick={startGame} disabled={!name.trim() || loading}>
-            {loading ? "Loading…" : "Take The Stage ▶"}
-          </button>
-          <button className="btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => navigate("/leaderboard")}>
-            🏆 Leaderboard{leaderboard.length > 0 ? ` (${leaderboard.length} players)` : ""}
-          </button>
+              <div className="row g-2 mb-3">
+                {Object.entries(OPTION_TYPES).map(([key, val]) => (
+                  <div key={key} className="col-6">
+                    <div className={`type-card d-flex align-items-center gap-2 p-2 rounded-3 h-100 ${val.key}`}>
+                      <div className="fs-5">{val.label.split(" ")[0]}</div>
+                      <div>
+                        <div className="sn type-label small fw-semibold">{val.label.slice(3)}</div>
+                        <div className="sn text-muted" style={{ fontSize: 11 }}>+{val.points} points</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="stageName" className="form-label sn small text-muted text-uppercase" style={{ letterSpacing: "0.1em" }}>Your stage name</label>
+                <input
+                  id="stageName"
+                  className="form-control form-control-lg"
+                  placeholder="Enter your name…"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && name.trim() && !loading && startGame()}
+                  maxLength={20}
+                  autoFocus
+                />
+              </div>
+
+              <div className="d-grid gap-2">
+                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={startGame} disabled={!name.trim() || loading}>
+                  {loading ? "Loading…" : "Unlock Your HQ!"}
+                </button>
+                <button className="btn btn-link" onClick={() => navigate("/leaderboard")}>
+                  View Leaderboard
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* ── LOADING ──────────────────────────────────────────────────────────── */}
       {screen === "loading" && (
-        <div className="card loading-card">
-          <div className="loading-emoji">🤖</div>
-          <h2 className="dp loading-title">Cooking up chaos…</h2>
-          <p className="sn loading-sub">Generating fresh scenarios just for you</p>
+        <div className="text-center">
+          <div className="display-3 mb-3">🤖</div>
+          <h2 className="dp h2 mb-2">Cooking up chaos…</h2>
+          <p className="sn text-muted mb-4">Generating fresh scenarios just for you</p>
           <div className="think-dots"><span /><span /><span /></div>
         </div>
       )}
 
       {/* ── GAME ─────────────────────────────────────────────────────────────── */}
       {screen === "game" && q && (
-        <div className="card slide-up" key={animKey}>
-          <div className="game-header">
-            <div>
-              <div className="sn game-counter-label">QUESTION</div>
-              <div className="dp game-counter-value">
-                {qIdx + 1} <span className="game-counter-total">/ {questions.length}</span>
-              </div>
-            </div>
-            <TimerRing value={timeLeft} max={30} />
-            <div>
-              <div className="sn game-score-label">SCORE</div>
-              <div className="dp game-score-value">{totalScore}</div>
-            </div>
-          </div>
-
-          <div className="progress-row">
-            {questions.map((_, i) => (
-              <div key={i} className={`progress-dot${i < qIdx ? " done" : i === qIdx ? " current" : ""}`}
-                style={{ flex: i === qIdx ? 2.5 : 1 }} />
-            ))}
-          </div>
-
-          <div className="scenario-box">
-            <div className="sn scenario-eyebrow">THE SCENARIO</div>
-            <p className="dp scenario-text">"{q.scenario}"</p>
-          </div>
-
-          <div className={`options-list${chosen ? " has-chosen" : ""}`}>
-            {q.options.map((opt, i) => {
-              const st = OPTION_TYPES[opt.type];
-              const isChosen  = chosen?.type === opt.type;
-              const revealed  = !!chosen;
-              return (
-                <button key={i}
-                  className={`opt-btn${revealed ? ` ${st.key}` : ""}${isChosen ? " chosen" : ""}${revealed && !isChosen ? " dimmed" : ""}`}
-                  style={isChosen ? { boxShadow: `0 0 20px ${st.color}30` } : {}}
-                  onClick={() => handlePick(opt)}
-                  disabled={!!chosen}
-                >
-                  {revealed && (
-                    <span className={`opt-type-badge ${st.key}`}>{st.label}</span>
-                  )}
-                  <span>{opt.text}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {chosen && (
-            <div className={`reaction-box pop ${OPTION_TYPES[chosen.type].key}`}>
+        <div className="card stage-card slide-up w-100" style={{ maxWidth: 1200 }} key={animKey}>
+          <div className="card-body p-4">
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <div>
-                <div className={`sn reaction-verdict ${OPTION_TYPES[chosen.type].key}`}>
-                  {chosen.type === "FUNNY" ? "COMEDY GOLD" : chosen.type === "SAFE" ? "PLAYS IT SAFE" : chosen.type === "SARCASTIC" ? "SNARKY GENIUS" : "CERTIFIED CHAOS"}
+                <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Question</div>
+                <div className="dp fs-3 lh-1">
+                  {qIdx + 1} <span className="text-muted fs-6">/ {questions.length}</span>
                 </div>
-                <p className="dp reaction-text">"{q.reaction?.[chosen.type] || "Interesting choice."}"</p>
               </div>
-              <div style={{ textAlign: "center", flexShrink: 0 }}>
-                <div className={`dp reaction-pts-value`} style={{ color: OPTION_TYPES[chosen.type].color }}>
-                  +{OPTION_TYPES[chosen.type].points}
-                </div>
-                <div className="sn reaction-pts-label">pts</div>
+              <TimerRing value={timeLeft} max={30} />
+              <div className="text-end">
+                <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Score</div>
+                <div className="dp fs-3 lh-1">{totalScore}</div>
               </div>
             </div>
-          )}
 
-          {chosen && (
-            <button className="btn-main" onClick={handleNext}>
-              {qIdx + 1 >= questions.length ? "See My HQ Score →" : "Next Question →"}
-            </button>
-          )}
+            <div className="progress mb-3" role="progressbar" aria-valuenow={qIdx + 1} aria-valuemin={0} aria-valuemax={questions.length}>
+              <div className="progress-bar" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, transition: "width .4s ease" }} />
+            </div>
 
-          <div className="sn game-player-name">{name}</div>
+            <div className="alert scenario-alert rounded-4 p-3 mb-3" role="region">
+              <div className="sn small text-uppercase mb-2" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
+              <p className="dp m-0 fst-italic fs-5 lh-base">"{q.scenario}"</p>
+            </div>
+
+            <div className="d-grid gap-2 mb-3">
+              {q.options.map((opt, i) => {
+                const st = OPTION_TYPES[opt.type];
+                const isChosen = chosen?.type === opt.type;
+                const revealed = !!chosen;
+                return (
+                  <button
+                    key={i}
+                    className={`btn opt-btn d-flex flex-row align-items-center justify-content-between gap-2 p-3 rounded-4${revealed ? ` ${st.key}` : ""}${isChosen ? " chosen" : ""}${revealed && !isChosen ? " dimmed" : ""}`}
+                    style={isChosen ? { boxShadow: `0 0 20px ${st.color}30` } : undefined}
+                    onClick={() => handlePick(opt)}
+                    disabled={!!chosen}
+                  >
+                    <span className="text-start flex-grow-1">{opt.text}</span>
+                    {revealed && (
+                      <span className={`badge type-badge ${st.key} flex-shrink-0`} style={{ fontSize: 10 }}>
+                        {st.label}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {chosen && (
+              <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[chosen.type].key}`} role="status">
+                <div>
+                  <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
+                    {chosen.type === "FUNNY" ? "Comedy Gold" : chosen.type === "SAFE" ? "Plays It Safe" : chosen.type === "SARCASTIC" ? "Snarky Genius" : "Certified Chaos"}
+                  </div>
+                  <p className="dp m-0 fst-italic lh-sm">"{q.reaction?.[chosen.type] || "Interesting choice."}"</p>
+                </div>
+                <div className="text-center flex-shrink-0">
+                  <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[chosen.type].color }}>
+                    +{OPTION_TYPES[chosen.type].points}
+                  </div>
+                  <div className="sn small text-muted">points</div>
+                </div>
+              </div>
+            )}
+
+            {chosen && (
+              <div className="d-grid gap-2 col-md-6 mx-auto">
+                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={handleNext}>
+                  {qIdx + 1 >= questions.length ? "See Your HQ" : "Next Question"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── RESULT ───────────────────────────────────────────────────────────── */}
       {screen === "result" && (
-        <div className="card slide-up result-card">
-          <div className="sn result-who">{name.toUpperCase()} · YOUR RESULTS</div>
-          <div className="result-emoji">{hqInfo.emoji}</div>
-          <h2 className="dp curtain result-title">{hqInfo.title}</h2>
-          <p className="sn result-sub">{hqInfo.sub}</p>
+        <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }}>
+          <div className="row g-0">
+            <div className="col-md-6 pane-divider p-4 p-md-5 text-center d-flex flex-column justify-content-center">
+              <div className="sn small text-muted text-uppercase mb-2" style={{ letterSpacing: "0.25em" }}>{name} · Your results</div>
+              <div className="display-3 mb-1">{hqInfo.emoji}</div>
+              <h2 className="dp curtain display-5 fw-bolder mb-1">{hqInfo.title}</h2>
+              <p className="sn text-muted mb-4">{hqInfo.sub}</p>
 
-          <div className="score-box">
-            <div className="sn score-box-label">HUMOUR QUOTIENT</div>
-            <div className="dp score-big">{displayFinalScore}</div>
-            <div className="sn score-out-of">out of {MAX_SCORE}</div>
-            <div className="score-bar-wrap">
-              <div className="score-bar-fill" style={{
-                width: `${(displayFinalScore / MAX_SCORE) * 100}%`,
-                background: `linear-gradient(90deg, ${hqInfo.color}, #963AB1)`,
-                boxShadow: `0 0 12px ${hqInfo.color}60`,
-              }} />
-            </div>
-          </div>
+              <div className="mb-3">
+                <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.2em", fontSize: 12 }}>Humour Quotient</div>
+                <div className="dp display-1 fw-bolder lh-1 text-white">{displayFinalScore}/{MAX_SCORE}</div>
+              </div>
 
-          {dominantStyle && OPTION_TYPES[dominantStyle] && (
-            <div className="dna-wrap">
-              <div className="sn dna-label">YOUR HUMOUR DNA</div>
-              <span className={`dna-badge ${OPTION_TYPES[dominantStyle].key}`}>
-                {OPTION_TYPES[dominantStyle].label}
-              </span>
-            </div>
-          )}
-
-          <div className="rounds-wrap">
-            <div className="sn rounds-label">ROUND BY ROUND</div>
-            {scores.map((s, i) => {
-              const st = OPTION_TYPES[s.type];
-              return (
-                <div key={i} className="round-row">
-                  <div className="sn round-num">Q{i + 1}</div>
-                  <div style={{ flex: 1 }}>
-                    <span className={`round-badge ${st.key}`}>{st.label}</span>
-                  </div>
-                  <div className={`dp round-pts ${st.key}`}>+{s.pts}</div>
+              {dominantStyle && OPTION_TYPES[dominantStyle] && (
+                <div>
+                  <div className="sn small text-muted text-uppercase mb-2" style={{ letterSpacing: "0.1em" }}>Your Humour DNA</div>
+                  <span className={`badge type-badge rounded-pill px-3 py-2 fs-6 ${OPTION_TYPES[dominantStyle].key}`}>
+                    {OPTION_TYPES[dominantStyle].label}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-
-          {myRank > 0 && (
-            <div className={`rank-badge${myRank <= 3 ? " top3" : ""}`}>
-              <span className="sn rank-badge-text">
-                {myRank === 1 ? "🥇 Top of the leaderboard!" : myRank === 2 ? "🥈 So close to #1!" : myRank === 3 ? "🥉 Top 3!" : `#${myRank} on leaderboard`}
-              </span>
-              <span className="dp rank-badge-num">#{myRank}</span>
+              )}
             </div>
-          )}
 
-          <div className="result-actions">
-            <button className="btn-main" style={{ flex: 1 }} onClick={() => setScreen("home")}>Play Again ↺</button>
-            <button className="btn-ghost" onClick={() => navigate("/leaderboard")}>🏆 Board</button>
+            <div className="col-md-6 card-body p-4 p-md-5 d-flex flex-column">
+              <div className="text-start mb-3 flex-grow-1">
+                <div className="sn small text-muted text-uppercase mb-3" style={{ letterSpacing: "0.1em", fontSize: 10 }}>Round by round</div>
+                {scores.map((s, i) => {
+                  const st = OPTION_TYPES[s.type];
+                  return (
+                    <div key={i} className="d-flex align-items-center gap-2 p-2 px-3 rounded-3 border mb-2" style={{ background: "var(--fill-soft)" }}>
+                      <div className="sn small text-muted" style={{ width: 24 }}>Q{i + 1}</div>
+                      <div className="flex-grow-1">
+                        <span className={`badge type-badge ${st.key}`} style={{ fontSize: 11 }}>{st.label}</span>
+                      </div>
+                      <div className={`dp fs-5 ${st.key}`} style={{ color: "var(--fg)" }}>+{s.pts}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {myRank > 0 && (
+                <div className="sn text-center mb-3">
+                  {myRank === 1 ? "🥇 Top of the leaderboard!"
+                    : myRank === 2 ? "🥈 So close to #1!"
+                    : myRank === 3 ? "🥉 Top 3!"
+                    : <>You're <span className="sn fw-bold" style={{ color: "var(--gold)" }}>#{myRank}</span> on the leaderboard!</>}
+                </div>
+              )}
+
+              <div className="d-grid gap-2">
+                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={() => setScreen("home")}>Play Again</button>
+                <button className="btn btn-link" onClick={() => navigate("/leaderboard")}>View Leaderboard</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

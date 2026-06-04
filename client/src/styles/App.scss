@@ -1,0 +1,420 @@
+@use "sass:color";
+
+$red: #d22d1e;
+$red-dark: #a82418;
+$purple: #963ab1;
+$purple-dark: #7b2d9a;
+
+.app-wrap {
+  background: var(--bg-base);
+}
+
+// ── Card ────────────────────────────────────────────────────────────────────
+.stage-card {
+  background: var(--fill);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  color: var(--text);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.85);
+}
+
+// ── Primary button: brand gradient ──────────────────────────────────────────
+.btn-primary {
+  background: linear-gradient(90deg, var(--red), var(--purple) 52%, var(--blue));
+  border: none;
+  color: #fff;
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-radius: 14px;
+  box-shadow: none;
+  transition: transform 0.15s;
+
+  &:hover:not(:disabled),
+  &:active,
+  &:focus {
+    color: #fff;
+    border: none;
+    box-shadow: none;
+  }
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+  &:disabled {
+    opacity: 0.4;
+  }
+}
+
+// ── Text-link button ────────────────────────────────────────────────────────
+.btn-link {
+  color: var(--text-sub);
+  font-family: "DM Sans", sans-serif;
+  font-weight: 500;
+
+  &:hover {
+    color: $purple;
+    text-decoration: underline;
+  }
+}
+
+// ── Inputs on dark ──────────────────────────────────────────────────────────
+.form-control {
+  background: var(--fill);
+  border: 1.5px solid var(--border-mid);
+  color: var(--text);
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+  &:focus {
+    background: var(--fill);
+    color: var(--text);
+    border-color: $purple;
+    box-shadow: 0 0 24px rgba($purple, 0.25);
+  }
+}
+
+// ── Alerts ──────────────────────────────────────────────────────────────────
+.scenario-alert {
+  background: var(--purple-dim);
+  border: 1px solid var(--purple-border);
+  color: var(--text);
+}
+.reaction-box {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  color: var(--text);
+}
+
+// ── Progress bar ────────────────────────────────────────────────────────────
+.progress {
+  background: var(--bg-raised);
+  height: 5px;
+}
+.progress-bar {
+  background: linear-gradient(90deg, var(--red), var(--purple) 52%, var(--blue));
+}
+
+// ── Type badge ──────────────────────────────────────────────────────────────
+.type-badge {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+.toast-stage {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  color: var(--fg);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  animation: toastIn 0.3s cubic-bezier(0.2, 1, 0.4, 1) forwards;
+
+  &.error {
+    --bg: var(--red-dim);
+    --bd: var(--red-border);
+    --fg: #{$red};
+  }
+  &.warning {
+    --bg: var(--purple-dim);
+    --bd: var(--purple-border);
+    --fg: #{$purple};
+  }
+  &.info {
+    --bg: var(--blue-dim);
+    --bd: var(--blue-border);
+    --fg: var(--blue);
+  }
+}
+
+// ── Option buttons ──────────────────────────────────────────────────────────
+.opt-btn {
+  text-align: left;
+  background: var(--bg, var(--fill));
+  border: 1.5px solid var(--bd, var(--border-mid));
+  color: var(--fg, var(--text-sub));
+  font-family: "DM Sans", sans-serif;
+  transition:
+    transform 0.18s,
+    border-color 0.18s,
+    background 0.18s,
+    opacity 0.18s;
+  white-space: normal;
+
+  &:hover:not(:disabled) {
+    transform: translateX(4px) scale(1.01);
+    border-color: var(--purple-border);
+  }
+  &.chosen {
+    transform: translateX(6px) !important;
+  }
+  &.dimmed {
+    opacity: 0.3;
+  }
+}
+
+// ── Type cards ──────────────────────────────────────────────────────────────
+.type-card {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  .type-label {
+    color: var(--fg);
+  }
+}
+
+// ── Brain stage ─────────────────────────────────────────────────────────────
+.pane-divider {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 767.98px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.home-stage {
+  min-height: 400px;
+
+  &::before {
+    content: "";
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--purple-dim) 0%, transparent 70%);
+    animation: brainGlow 3s ease-in-out infinite;
+  }
+
+  @media (max-width: 767.98px) {
+    min-height: 220px;
+  }
+}
+
+.brain-svg {
+  position: relative;
+  z-index: 2;
+  width: 320px;
+  height: 320px;
+  filter: drop-shadow(0 0 36px var(--purple));
+
+  .brain-edges path {
+    stroke: var(--purple-border);
+    stroke-width: 1.4;
+    fill: none;
+    opacity: 0.55;
+  }
+  .brain-nodes circle {
+    fill: var(--purple);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: nodePulse 2.4s ease-in-out infinite;
+  }
+  .brain-nodes .center {
+    fill: var(--pink);
+    animation-duration: 1.8s;
+  }
+  .brain-nodes .n1 {
+    fill: var(--red);
+    animation-delay: 0s;
+  }
+  .brain-nodes .n2 {
+    fill: var(--gold);
+    animation-delay: -0.3s;
+  }
+  .brain-nodes .n3 {
+    fill: var(--purple);
+    animation-delay: -0.6s;
+  }
+  .brain-nodes .n4 {
+    fill: var(--pink);
+    animation-delay: -0.9s;
+  }
+  .brain-nodes .n5 {
+    fill: var(--red);
+    animation-delay: -1.2s;
+  }
+  .brain-nodes .n6 {
+    fill: var(--blue);
+    animation-delay: -1.5s;
+  }
+  .brain-nodes .n7 {
+    fill: var(--gold);
+    animation-delay: -1.8s;
+  }
+  .brain-nodes .n8 {
+    fill: var(--purple);
+    animation-delay: -2.1s;
+  }
+}
+
+.brain-word {
+  position: absolute;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 8px currentColor);
+  animation: synapse 5s ease-in-out infinite;
+  user-select: none;
+
+  &.red {
+    color: var(--red);
+  }
+  &.purple {
+    color: var(--purple);
+  }
+  &.pink {
+    color: var(--pink);
+  }
+  &.gold {
+    color: var(--gold);
+  }
+  &.blue {
+    color: var(--blue);
+  }
+}
+
+// ── Loading dots ────────────────────────────────────────────────────────────
+.think-dots span {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 0 3px;
+  background: var(--purple);
+  border-radius: 50%;
+  animation: db 1.2s infinite;
+
+  &:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  &:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+// ── Confetti ────────────────────────────────────────────────────────────────
+.confetti-wrap {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1080;
+  overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+}
+
+// ── Entrance animations ─────────────────────────────────────────────────────
+.slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.2, 1, 0.4, 1) forwards;
+}
+.pop {
+  animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+// ── Keyframes ───────────────────────────────────────────────────────────────
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes db {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes confettiFall {
+  0% {
+    transform: translateY(0) rotate(0) scaleX(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(50vh) rotate(360deg) scaleX(-1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+@keyframes nodePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 1;
+  }
+}
+@keyframes brainGlow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+@keyframes synapse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  30%,
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  88% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}

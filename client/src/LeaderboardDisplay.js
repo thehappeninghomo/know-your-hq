@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { fetchLeaderboard } from "./api";
-import "./styles/Leaderboard.css";
+import "./styles/Leaderboard.scss";
 
 const MAX_SCORE = 6 * 25;
 const MEDALS = ["🥇", "🥈", "🥉"];
+const MEDAL_CLASS = ["gold", "silver", "bronze"];
 
 export default function LeaderboardDisplay() {
-  const [entries, setEntries]       = useState([]);
+  const [entries, setEntries]         = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
 
   async function refresh() {
@@ -24,40 +26,44 @@ export default function LeaderboardDisplay() {
   }, []);
 
   return (
-    <div className="lb-page">
-      <div className="lb-spotlight" />
+    <div className="lb-page min-vh-100 py-5 px-3">
+      <div className="container" style={{ maxWidth: 900 }}>
+        <header className="text-center mb-3">
+          <h1 className="lb-title m-0">🏆 Comedy Rankings</h1>
+          <p className="sn text-muted mt-2 mb-0">Know Your Humour Quotient · Ranked by Score</p>
+        </header>
 
-      <div className="lb-inner">
-        <div className="lb-header">
-          <h1 className="lb-title">🏆 Comedy Rankings</h1>
-          <p className="sn lb-sub">Know Your Humour Quotient · Ranked by Score</p>
-        </div>
-
-        <div className="lb-live">
+        <div className="d-flex justify-content-center align-items-center gap-2 mb-4 small text-muted">
           <span className="lb-live-dot" />
           Live{lastUpdated ? ` · updated ${lastUpdated}` : ""} · refreshes every 10 min
         </div>
 
+        <div className="text-center mb-4">
+          <Link to="/" className="btn btn-link">Back to Home</Link>
+        </div>
+
         {entries.length === 0 ? (
-          <p className="lb-empty">No players yet — be the first!</p>
+          <p className="text-center text-muted py-5 fs-4">No players yet — be the first!</p>
         ) : (
-          entries.map((e, i) => (
-            <div key={e.id} className={`lb-board-row${i === 0 ? " gold" : ""}`}>
-              <div className="lb-medal">
-                {i < 3
-                  ? MEDALS[i]
-                  : <span className="sn lb-rank-num">#{i + 1}</span>}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className="dp lb-name">{e.name}</div>
-                <div className="sn lb-title-line">{e.emoji} {e.title} · {e.time}</div>
-              </div>
-              <div>
-                <div className="dp lb-score">{e.score}</div>
-                <div className="sn lb-out-of">/ {MAX_SCORE}</div>
-              </div>
-            </div>
-          ))
+          <ul className="lb-board list-unstyled mb-0">
+            {entries.map((e, i) => (
+              <li key={e.id} className={`lb-row d-flex align-items-center gap-3 px-4 py-3${MEDAL_CLASS[i] ? " " + MEDAL_CLASS[i] : ""}`}>
+                <div className="flex-shrink-0 text-center" style={{ width: 52, fontSize: "clamp(24px, 3vw, 40px)" }}>
+                  {i < 3
+                    ? MEDALS[i]
+                    : <span className="sn text-muted fw-semibold fs-6">#{i + 1}</span>}
+                </div>
+                <div className="flex-grow-1">
+                  <div className="dp lb-name">{e.name}</div>
+                  <div className="sn small text-muted mt-1">{e.emoji} {e.title} · {e.time}</div>
+                </div>
+                <div className="text-end flex-shrink-0">
+                  <div className="dp lb-score">{e.score}</div>
+                  <div className="sn text-muted" style={{ fontSize: 11 }}>/ {MAX_SCORE}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

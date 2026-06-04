@@ -31,15 +31,9 @@ know-your-hq/
 
 ## Setup — Step by Step
 
-### 1. Get your API key(s)
+### 1. Get your Anthropic API key
 
-You need at least one key. The game lets players pick their AI provider from Claude, Gemini, or GPT-4o.
-
-| Provider  | Where to get it                          |
-|-----------|------------------------------------------|
-| Claude    | https://platform.anthropic.com/api-keys  |
-| Gemini    | https://aistudio.google.com/apikey       |
-| OpenAI    | https://platform.openai.com/api-keys     |
+Grab a key from https://platform.anthropic.com/api-keys. The app falls back to built-in questions if the key is missing or the API call fails.
 
 ### 2. Configure the server
 
@@ -48,18 +42,14 @@ cd server
 cp .env.example .env
 ```
 
-Open `server/.env` and paste your key(s):
+Open `server/.env` and paste your key:
 
 ```env
 ANTHROPIC_API_KEY=your-anthropic-key-here
-GEMINI_API_KEY=your-gemini-key-here
-OPENAI_API_KEY=your-openai-key-here
 
 PORT=3001
 CLIENT_ORIGIN=http://localhost:3000
 ```
-
-You only need to fill in the keys for the providers you want to use. The app falls back to built-in questions if a key is missing or the API call fails.
 
 ### 3. Configure the client
 
@@ -136,7 +126,7 @@ curl -X DELETE http://localhost:3001/api/leaderboard
 ### Option B — Separate hosting (e.g. Vercel + Railway)
 
 - **Backend**: Deploy `server/` to Railway, Render, or any Node host
-  - Set `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, and `CLIENT_ORIGIN` in the platform's env settings
+  - Set `ANTHROPIC_API_KEY` and `CLIENT_ORIGIN` in the platform's env settings
 - **Frontend**: Deploy `client/` to Vercel or Netlify
   - Set `REACT_APP_API_URL` to your backend's deployed URL
 
@@ -146,13 +136,11 @@ curl -X DELETE http://localhost:3001/api/leaderboard
 
 ### server/.env
 
-| Variable           | Required          | Description                                        |
-|--------------------|-------------------|----------------------------------------------------|
-| ANTHROPIC_API_KEY  | At least one key  | Anthropic API key — powers Claude (claude-sonnet-4-5) |
-| GEMINI_API_KEY     | At least one key  | Google API key — powers Gemini (gemini-2.0-flash)  |
-| OPENAI_API_KEY     | At least one key  | OpenAI API key — powers GPT-4o                     |
-| PORT               | optional          | Server port (default: 3001)                        |
-| CLIENT_ORIGIN      | optional          | Frontend URL for CORS (default: localhost:3000)    |
+| Variable           | Required | Description                                           |
+|--------------------|----------|-------------------------------------------------------|
+| ANTHROPIC_API_KEY  | yes      | Anthropic API key — powers Claude (claude-sonnet-4-5) |
+| PORT               | optional | Server port (default: 3001)                           |
+| CLIENT_ORIGIN      | optional | Frontend URL for CORS (default: localhost:3000)       |
 
 ### client/.env
 
@@ -173,10 +161,10 @@ curl -X DELETE http://localhost:3001/api/leaderboard
 
 ## Cost Estimate
 
-Each game generates roughly 1,500 input tokens + 800 output tokens per player.
+Each game generates roughly 1,500 input tokens + 800 output tokens per player on Claude Sonnet 4.5.
 
-| Players | Claude (Sonnet 4.5) | Gemini (2.0 Flash) | GPT-4o     |
-|---------|---------------------|--------------------|------------|
-| 50      | ~$0.25              | ~$0.01             | ~$0.35     |
-| 200     | ~$1.00              | ~$0.04             | ~$1.40     |
-| 500     | ~$2.50              | ~$0.10             | ~$3.50     |
+| Players | Estimated cost |
+|---------|----------------|
+| 50      | ~$0.25         |
+| 200     | ~$1.00         |
+| 500     | ~$2.50         |

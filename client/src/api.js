@@ -14,9 +14,7 @@ async function post(path, body) {
   return res.json();
 }
 
-export const callClaude  = (body) => post("/api/claude",  body);
-export const callGemini  = (body) => post("/api/gemini",  body);
-export const callOpenAI  = (body) => post("/api/openai",  body);
+export const callClaude = (body) => post("/api/claude", body);
 
 export async function fetchLeaderboard() {
   const res = await fetch(`${API_BASE}/api/leaderboard`);
