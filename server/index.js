@@ -77,6 +77,14 @@ async function clearLeaderboard() {
   }
 }
 
+async function deleteEntry(id) {
+  if (usePostgres) {
+    await pool.query("DELETE FROM leaderboard WHERE id = $1", [id]);
+  } else {
+    db.prepare("DELETE FROM leaderboard WHERE id = ?").run(id);
+  }
+}
+
 // ── Leaderboard routes ─────────────────────────────────────────────────────────
 app.get("/api/leaderboard", async (_req, res) => {
   try {
@@ -107,6 +115,18 @@ app.delete("/api/leaderboard", async (_req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to clear leaderboard" });
+  }
+});
+
+app.delete("/api/leaderboard/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await deleteEntry(id);
+    res.json({ leaderboard: await getLeaderboard() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete entry" });
   }
 });
 
