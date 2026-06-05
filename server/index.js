@@ -85,6 +85,13 @@ async function deleteEntry(id) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  const expected = process.env.ADMIN_TOKEN;
+  if (!expected) return res.status(500).json({ error: "ADMIN_TOKEN not configured on server" });
+  if (req.headers["x-admin-token"] !== expected) return res.status(401).json({ error: "Unauthorized" });
+  next();
+}
+
 // ── Leaderboard routes ─────────────────────────────────────────────────────────
 app.get("/api/leaderboard", async (_req, res) => {
   try {
@@ -108,7 +115,7 @@ app.post("/api/leaderboard", async (req, res) => {
   }
 });
 
-app.delete("/api/leaderboard", async (_req, res) => {
+app.delete("/api/leaderboard", requireAdmin, async (_req, res) => {
   try {
     await clearLeaderboard();
     res.json({ leaderboard: [] });
@@ -118,7 +125,7 @@ app.delete("/api/leaderboard", async (_req, res) => {
   }
 });
 
-app.delete("/api/leaderboard/:id", async (req, res) => {
+app.delete("/api/leaderboard/:id", requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
   try {
