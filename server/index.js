@@ -21,29 +21,35 @@ if (usePostgres) {
   });
   pool.query(`
     CREATE TABLE IF NOT EXISTS leaderboard (
-      id         BIGSERIAL PRIMARY KEY,
-      name       TEXT    NOT NULL,
-      score      INTEGER NOT NULL,
-      title      TEXT    NOT NULL,
-      emoji      TEXT    NOT NULL,
-      time       TEXT    NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      id          BIGSERIAL PRIMARY KEY,
+      name        TEXT    NOT NULL,
+      score       INTEGER NOT NULL,
+      title       TEXT    NOT NULL,
+      emoji       TEXT    NOT NULL,
+      time        TEXT    NOT NULL,
+      duration_ms INTEGER,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
     )
-  `).then(() => console.log("PostgreSQL ready"))
+  `)
+    .then(() => pool.query("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS duration_ms INTEGER"))
+    .then(() => console.log("PostgreSQL ready"))
     .catch(err => console.error("PostgreSQL init failed:", err.message));
 } else {
   const Database = require("better-sqlite3");
   db = new Database("leaderboard.db");
   db.exec(`
     CREATE TABLE IF NOT EXISTS leaderboard (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT    NOT NULL,
-      score      INTEGER NOT NULL,
-      title      TEXT    NOT NULL,
-      emoji      TEXT    NOT NULL,
-      time       TEXT    NOT NULL
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT    NOT NULL,
+      score       INTEGER NOT NULL,
+      title       TEXT    NOT NULL,
+      emoji       TEXT    NOT NULL,
+      time        TEXT    NOT NULL,
+      duration_ms INTEGER
     )
   `);
+  const hasDuration = db.prepare("PRAGMA table_info(leaderboard)").all().some(c => c.name === "duration_ms");
+  if (!hasDuration) db.exec("ALTER TABLE leaderboard ADD COLUMN duration_ms INTEGER");
   console.log("SQLite ready");
 }
 
@@ -51,21 +57,23 @@ if (usePostgres) {
 async function getLeaderboard() {
   if (usePostgres) {
     const { rows } = await pool.query(
-      "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC"
+      "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC, duration_ms ASC NULLS LAST, id ASC"
     );
     return rows;
   }
-  return db.prepare("SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC").all();
+  return db.prepare(
+    "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC, duration_ms IS NULL, duration_ms ASC, id ASC"
+  ).all();
 }
 
-async function insertEntry(name, score, title, emoji, time) {
+async function insertEntry(name, score, title, emoji, time, durationMs) {
   if (usePostgres) {
     await pool.query(
-      "INSERT INTO leaderboard (name, score, title, emoji, time) VALUES ($1, $2, $3, $4, $5)",
-      [name, score, title, emoji, time]
+      "INSERT INTO leaderboard (name, score, title, emoji, time, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)",
+      [name, score, title, emoji, time, durationMs]
     );
   } else {
-    db.prepare("INSERT INTO leaderboard (name, score, title, emoji, time) VALUES (?, ?, ?, ?, ?)").run(name, score, title, emoji, time);
+    db.prepare("INSERT INTO leaderboard (name, score, title, emoji, time, duration_ms) VALUES (?, ?, ?, ?, ?, ?)").run(name, score, title, emoji, time, durationMs);
   }
 }
 
@@ -103,11 +111,12 @@ app.get("/api/leaderboard", async (_req, res) => {
 });
 
 app.post("/api/leaderboard", async (req, res) => {
-  const { name, score, title, emoji, time } = req.body;
+  const { name, score, title, emoji, time, durationMs } = req.body;
   if (!name || score == null || !title || !emoji || !time)
     return res.status(400).json({ error: "Missing required fields" });
+  const duration = Number.isFinite(durationMs) ? Math.round(durationMs) : null;
   try {
-    await insertEntry(name, score, title, emoji, time);
+    await insertEntry(name, score, title, emoji, time, duration);
     res.json({ leaderboard: await getLeaderboard() });
   } catch (err) {
     console.error(err);

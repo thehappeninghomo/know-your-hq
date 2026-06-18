@@ -362,6 +362,7 @@ export default function App() {
   const finalScoreRef                 = useRef(0);
   const timerRef                      = useRef(null);
   const submitRef                     = useRef(() => {});  // latest handleSubmit, for the timer
+  const gameStartRef                  = useRef(0);
   const speech                        = useSpeech();
  
   const MAX_SCORE = 6 * MAX_PER_Q;
@@ -404,6 +405,7 @@ export default function App() {
     setQIdx(0); setScores([]); setTotalScore(0);
     setResult(null); setJudging(false); speech.reset();
     finalScoreRef.current = 0;
+    gameStartRef.current = Date.now();
     setScreen("game");
     setAnimKey(k => k + 1);
     startTimer();
@@ -460,6 +462,7 @@ export default function App() {
         name: name.trim(), score: newTotal,
         title: hq.title, emoji: hq.emoji,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        durationMs: Date.now() - gameStartRef.current,
       };
       try {
         const updated = await saveScore(entry);
