@@ -1,14 +1,14 @@
 @use "sass:color";
-
+ 
 $red: #d22d1e;
 $red-dark: #a82418;
 $purple: #963ab1;
 $purple-dark: #7b2d9a;
-
+ 
 .app-wrap {
   background: var(--bg-base);
 }
-
+ 
 // ── Card ────────────────────────────────────────────────────────────────────
 .stage-card {
   background: var(--fill);
@@ -17,7 +17,7 @@ $purple-dark: #7b2d9a;
   color: var(--text);
   box-shadow: 0 8px 48px rgba(0, 0, 0, 0.85);
 }
-
+ 
 // ── Primary button: brand gradient ──────────────────────────────────────────
 .btn-primary {
   background: linear-gradient(90deg, var(--red), var(--purple) 52%, var(--blue));
@@ -29,7 +29,7 @@ $purple-dark: #7b2d9a;
   border-radius: 14px;
   box-shadow: none;
   transition: transform 0.15s;
-
+ 
   &:hover:not(:disabled),
   &:active,
   &:focus {
@@ -44,25 +44,25 @@ $purple-dark: #7b2d9a;
     opacity: 0.4;
   }
 }
-
+ 
 // ── Text-link button ────────────────────────────────────────────────────────
 .btn-link {
   color: var(--text-sub);
   font-family: "DM Sans", sans-serif;
   font-weight: 500;
-
+ 
   &:hover {
     color: $purple;
     text-decoration: underline;
   }
 }
-
+ 
 // ── Inputs on dark ──────────────────────────────────────────────────────────
 .form-control {
   background: var(--fill);
   border: 1.5px solid var(--border-mid);
   color: var(--text);
-
+ 
   &::placeholder {
     color: var(--text-muted);
   }
@@ -73,7 +73,7 @@ $purple-dark: #7b2d9a;
     box-shadow: 0 0 24px rgba($purple, 0.25);
   }
 }
-
+ 
 // ── Alerts ──────────────────────────────────────────────────────────────────
 .scenario-alert {
   background: var(--purple-dim);
@@ -85,7 +85,63 @@ $purple-dark: #7b2d9a;
   border: 1px solid var(--bd);
   color: var(--text);
 }
-
+ 
+// ── Answer stage (speak your answer) ─────────────────────────────────────────
+.mic-btn {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 2px solid var(--purple-border);
+  background: var(--purple-dim);
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 0.18s,
+    border-color 0.18s,
+    background 0.18s,
+    box-shadow 0.18s;
+ 
+  &:hover:not(.recording) {
+    transform: scale(1.06);
+    border-color: var(--purple);
+  }
+  &.recording {
+    border-color: var(--red-border);
+    background: var(--red-dim);
+    animation: micPulse 1.3s ease-in-out infinite;
+  }
+}
+ 
+.answer-box {
+  resize: vertical;
+  min-height: 84px;
+  background: var(--fill-soft);
+  border: 1.5px solid var(--border-mid);
+  color: var(--text);
+  font-family: "DM Sans", sans-serif;
+ 
+  &:focus {
+    background: var(--fill-soft);
+    border-color: var(--purple-border);
+    color: var(--text);
+    box-shadow: 0 0 0 0.2rem var(--purple-dim);
+  }
+  &::placeholder { color: var(--text-muted); }
+}
+ 
+@keyframes micPulse {
+  0%,
+  100% { box-shadow: 0 0 0 0 var(--red-dim); }
+  50%  { box-shadow: 0 0 0 14px rgba(210, 45, 30, 0); }
+}
+ 
+.or-divider > span:first-child,
+.or-divider > span:last-child {
+  height: 1px;
+  background: var(--border);
+}
+ 
 // ── Progress bar ────────────────────────────────────────────────────────────
 .progress {
   background: var(--bg-raised);
@@ -94,7 +150,7 @@ $purple-dark: #7b2d9a;
 .progress-bar {
   background: linear-gradient(90deg, var(--red), var(--purple) 52%, var(--blue));
 }
-
+ 
 // ── Type badge ──────────────────────────────────────────────────────────────
 .type-badge {
   background: var(--bg);
@@ -103,7 +159,7 @@ $purple-dark: #7b2d9a;
   font-weight: 600;
   letter-spacing: 0.1em;
 }
-
+ 
 // ── Toast ───────────────────────────────────────────────────────────────────
 .toast-stage {
   background: var(--bg);
@@ -112,7 +168,7 @@ $purple-dark: #7b2d9a;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
   animation: toastIn 0.3s cubic-bezier(0.2, 1, 0.4, 1) forwards;
-
+ 
   &.error {
     --bg: var(--red-dim);
     --bd: var(--red-border);
@@ -129,7 +185,7 @@ $purple-dark: #7b2d9a;
     --fg: var(--blue);
   }
 }
-
+ 
 // ── Option buttons ──────────────────────────────────────────────────────────
 .opt-btn {
   text-align: left;
@@ -143,7 +199,7 @@ $purple-dark: #7b2d9a;
     background 0.18s,
     opacity 0.18s;
   white-space: normal;
-
+ 
   &:hover:not(:disabled) {
     transform: translateX(4px) scale(1.01);
     border-color: var(--purple-border);
@@ -155,7 +211,7 @@ $purple-dark: #7b2d9a;
     opacity: 0.3;
   }
 }
-
+ 
 // ── Type cards ──────────────────────────────────────────────────────────────
 .type-card {
   background: var(--bg);
@@ -164,20 +220,20 @@ $purple-dark: #7b2d9a;
     color: var(--fg);
   }
 }
-
+ 
 // ── Brain stage ─────────────────────────────────────────────────────────────
 .pane-divider {
   border-right: 1px solid var(--border);
-
+ 
   @media (max-width: 767.98px) {
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
 }
-
+ 
 .home-stage {
   min-height: 400px;
-
+ 
   &::before {
     content: "";
     position: absolute;
@@ -187,19 +243,19 @@ $purple-dark: #7b2d9a;
     background: radial-gradient(circle, var(--purple-dim) 0%, transparent 70%);
     animation: brainGlow 3s ease-in-out infinite;
   }
-
+ 
   @media (max-width: 767.98px) {
     min-height: 220px;
   }
 }
-
+ 
 .brain-svg {
   position: relative;
   z-index: 2;
   width: 320px;
   height: 320px;
   filter: drop-shadow(0 0 36px var(--purple));
-
+ 
   .brain-edges path {
     stroke: var(--purple-border);
     stroke-width: 1.4;
@@ -249,7 +305,7 @@ $purple-dark: #7b2d9a;
     animation-delay: -2.1s;
   }
 }
-
+ 
 .brain-word {
   position: absolute;
   font-weight: 500;
@@ -261,7 +317,7 @@ $purple-dark: #7b2d9a;
   filter: drop-shadow(0 0 8px currentColor);
   animation: synapse 5s ease-in-out infinite;
   user-select: none;
-
+ 
   &.red {
     color: var(--red);
   }
@@ -278,7 +334,7 @@ $purple-dark: #7b2d9a;
     color: var(--blue);
   }
 }
-
+ 
 // ── Loading dots ────────────────────────────────────────────────────────────
 .think-dots span {
   display: inline-block;
@@ -288,7 +344,7 @@ $purple-dark: #7b2d9a;
   background: var(--purple);
   border-radius: 50%;
   animation: db 1.2s infinite;
-
+ 
   &:nth-child(2) {
     animation-delay: 0.2s;
   }
@@ -296,7 +352,7 @@ $purple-dark: #7b2d9a;
     animation-delay: 0.4s;
   }
 }
-
+ 
 // ── Confetti ────────────────────────────────────────────────────────────────
 .confetti-wrap {
   position: fixed;
@@ -310,7 +366,7 @@ $purple-dark: #7b2d9a;
   top: -20px;
   border-radius: 2px;
 }
-
+ 
 // ── Entrance animations ─────────────────────────────────────────────────────
 .slide-up {
   animation: slideUp 0.4s cubic-bezier(0.2, 1, 0.4, 1) forwards;
@@ -318,7 +374,7 @@ $purple-dark: #7b2d9a;
 .pop {
   animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
-
+ 
 // ── Keyframes ───────────────────────────────────────────────────────────────
 @keyframes slideUp {
   from {

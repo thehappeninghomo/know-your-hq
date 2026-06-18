@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchLeaderboard, saveScore, callClaude } from "./api";
 import "./styles/App.scss";
-
+ 
 // ── Brand colors (mirror the CSS tokens in styles/global.scss) ──────────────
 const COLORS = {
   red:        "#D22D1E",
@@ -20,7 +20,7 @@ const COLORS = {
   slateMid:   "#F9A8D4",
   white:      "#ffffff",
 };
-
+ 
 const BRAIN_WORDS = [
   { text: "Wit",       color: "red",    top:  4, left: 22, delay:  0    },
   { text: "Irony",     color: "purple", top:  8, left: 60, delay: -0.2  },
@@ -51,20 +51,25 @@ const BRAIN_WORDS = [
   { text: "Witty",     color: "pink",   top:  2, left: 40, delay: -2.5  },
   { text: "Chuckle",   color: "gold",   top: 98, left: 18, delay: -3.5  },
 ];
-
+ 
+// Comedic styles. `points` is awarded when a player PICKS a preset option of that
+// type; `desc` is the home-screen blurb; the style also drives the "Humour DNA" badge.
+// A spoken/typed answer is scored 0-MAX_PER_Q by Claude instead.
 const OPTION_TYPES = {
-  FUNNY:    { points: 25, color: COLORS.gold,     label: "😂 Genuinely Funny",    key: "funny"     },
-  SARCASTIC:{ points: 18, color: COLORS.teal,     label: "😏 Sarcastic",          key: "sarcastic" },
-  UNHINGED: { points: 15, color: COLORS.coral,    label: "🤪 Completely Unhinged", key: "unhinged"  },
-  SAFE:     { points: 10, color: COLORS.slateMid, label: "😐 Safe & Boring",      key: "safe"      },
+  FUNNY:    { points: 25, color: COLORS.gold,     label: "😂 Genuinely Funny",    key: "funny",     desc: "Clever & witty"   },
+  SARCASTIC:{ points: 18, color: COLORS.teal,     label: "😏 Sarcastic",          key: "sarcastic", desc: "Dry & ironic"     },
+  UNHINGED: { points: 15, color: COLORS.coral,    label: "🤪 Completely Unhinged", key: "unhinged",  desc: "Chaotic energy"   },
+  SAFE:     { points: 10, color: COLORS.slateMid, label: "😐 Safe & Boring",      key: "safe",      desc: "Played it safe"   },
 };
-
-const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Each has 4 answer options.
-
+ 
+const MAX_PER_Q = 25; // highest score Claude can award a spoken answer (also FUNNY option's points)
+ 
+const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players normally SPEAK their own answer out loud, but each scenario also offers 4 backup options to pick from if they're stuck.
+ 
 Return ONLY a valid JSON array. No markdown, no explanation, just the array. Use this exact shape:
 [
   {
-    "scenario": "The funny scenario question (1-2 sentences, relatable, office/social situations)",
+    "scenario": "A relatable/absurd 1-2 sentence situation that invites a funny response (end with a prompt like 'What do you say?' / 'What do you do?')",
     "options": [
       { "type": "FUNNY",     "text": "The clever, genuinely funny answer that shows wit (max 20 words)" },
       { "type": "SAFE",      "text": "The boring, predictable, overly professional answer (max 20 words)" },
@@ -79,21 +84,25 @@ Return ONLY a valid JSON array. No markdown, no explanation, just the array. Use
     }
   }
 ]
-
-Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible.
-Shuffle option order randomly. Return only the JSON array.`;
-
+ 
+Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible. Shuffle option order randomly. Return only the JSON array of 6 objects.`;
+ 
 function parseQuestions(raw) {
   try {
-    return JSON.parse(raw.replace(/```json|```/g, "").trim());
+    const arr = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    const cleaned = (Array.isArray(arr) ? arr : []).filter(q =>
+      q && typeof q.scenario === "string" && q.scenario.trim() &&
+      Array.isArray(q.options) && q.options.length >= 2
+    );
+    return cleaned.length ? cleaned : FALLBACK_QUESTIONS;
   } catch {
     return FALLBACK_QUESTIONS;
   }
 }
-
+ 
 async function generateQuestions() {
   const data = await callClaude({
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-6",
     max_tokens: 3000,
     system: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
     messages: [{ role: "user", content: QUESTIONS_PROMPT }],
@@ -101,7 +110,46 @@ async function generateQuestions() {
   const raw = data.content?.find(b => b.type === "text")?.text?.trim() || "[]";
   return parseQuestions(raw);
 }
-
+ 
+// ── Humor judging ──────────────────────────────────────────────────────────────
+function parseScore(raw) {
+  const extract = (txt) => {
+    try { return JSON.parse(txt.replace(/```json|```/g, "").trim()); }
+    catch {
+      const m = txt.match(/\{[\s\S]*\}/);
+      if (m) { try { return JSON.parse(m[0]); } catch { /* fall through */ } }
+      return null;
+    }
+  };
+  const json = extract(raw);
+  if (!json) return { score: 0, style: "SAFE", reaction: "Our judge couldn't quite catch that one." };
+  const score = Math.max(0, Math.min(MAX_PER_Q, Math.round(Number(json.score) || 0)));
+  const style = OPTION_TYPES[json.style] ? json.style : "SAFE";
+  const reaction = (typeof json.reaction === "string" && json.reaction.trim())
+    ? json.reaction.trim()
+    : "The judges have spoken.";
+  return { score, style, reaction };
+}
+ 
+async function scoreAnswer(scenario, answer) {
+  const data = await callClaude({
+    model: "claude-sonnet-4-6",
+    max_tokens: 400,
+    system: `You are a sharp, fair comedy judge for a game called "Know Your Humour Quotient". A player hears a scenario and improvises an answer out loud; their speech is transcribed to text and you judge how FUNNY that answer is.
+ 
+Judge on: wit, cleverness, originality, surprise, word choice, and the comedic tone that comes through the words (sarcasm, absurdity, deadpan, etc.). A safe, literal, or boring answer scores low. Length and randomness alone are not funny — genuine humour is the bar. Transcription may be imperfect; judge generously on intent.
+ 
+Return ONLY a JSON object, no markdown:
+{ "score": <integer 0-${MAX_PER_Q}>, "style": "<FUNNY|SARCASTIC|UNHINGED|SAFE>", "reaction": "<a short, witty one-line reaction to THEIR specific answer, max 14 words>" }
+ 
+Score guide: 0-6 boring/safe/no real attempt; 7-13 mild chuckle; 14-19 genuinely funny; 20-${MAX_PER_Q} comic gold. "style" = the comedic register their answer landed in (use SAFE when it isn't really funny).`,
+    messages: [{ role: "user", content: `Scenario: "${scenario}"\n\nPlayer's spoken answer (transcribed): "${answer}"` }],
+  });
+  const raw = data.content?.find(b => b.type === "text")?.text || "";
+  return parseScore(raw);
+}
+ 
+// Fallbacks (scenario + backup options) used when Claude is unreachable.
 const FALLBACK_QUESTIONS = [
   {
     scenario: "You accidentally liked your ex's 3-year-old Instagram photo at 2am. They've seen it. What do you do?",
@@ -164,7 +212,51 @@ const FALLBACK_QUESTIONS = [
     reaction: { FUNNY: "You claimed authority over a room that wasn't yours. Legend.", SAFE: "Technically correct. Spiritually defeated.", UNHINGED: "You attended a meeting AND made new friends. Efficient.", SARCASTIC: "The pre-read bluff. A classic power move." }
   },
 ];
-
+ 
+// ── Speech-to-text (Web Speech API, graceful fallback to typing) ─────────────────
+function useSpeech() {
+  const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supported = !!SR;
+  const recRef = useRef(null);
+  const finalRef = useRef("");
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+ 
+  const stop = useCallback(() => {
+    try { recRef.current?.stop(); } catch { /* already stopped */ }
+    setListening(false);
+  }, []);
+ 
+  const start = useCallback(() => {
+    if (!supported) return;
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.continuous = true;
+    rec.interimResults = true;
+    finalRef.current = "";
+    setTranscript("");
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalRef.current += t + " ";
+        else interim += t;
+      }
+      setTranscript((finalRef.current + interim).trim());
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    try { rec.start(); setListening(true); } catch { setListening(false); }
+  }, [SR, supported]);
+ 
+  // Typing fallback / manual edits write straight to the transcript.
+  const edit = useCallback((text) => { finalRef.current = text ? text + " " : ""; setTranscript(text); }, []);
+  const reset = useCallback(() => { finalRef.current = ""; setTranscript(""); setListening(false); }, []);
+ 
+  return { supported, listening, transcript, start, stop, edit, reset };
+}
+ 
 function getHQTitle(score, maxScore) {
   const pct = score / maxScore;
   if (pct >= 0.88) return { title: "COMEDY LEGEND",      sub: "You could headline a show.",       emoji: "🌟", color: COLORS.red    };
@@ -174,7 +266,7 @@ function getHQTitle(score, maxScore) {
   if (pct >= 0.20) return { title: "HUMOUR PADAWAN",     sub: "The force is… still loading.",      emoji: "🙂", color: COLORS.blue   };
   return              { title: "CHRONICALLY SERIOUS",    sub: "Have you tried laughing once?",      emoji: "😑", color: COLORS.slate  };
 }
-
+ 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 function Confetti({ active }) {
   const pieces = useRef(Array.from({ length: 70 }, (_, i) => ({
@@ -200,7 +292,7 @@ function Confetti({ active }) {
     </div>
   );
 }
-
+ 
 // ── Timer ring ────────────────────────────────────────────────────────────────
 function TimerRing({ value, max = 30 }) {
   const r = 26, circ = 2 * Math.PI * r;
@@ -222,7 +314,7 @@ function TimerRing({ value, max = 30 }) {
     </svg>
   );
 }
-
+ 
 // ── Toast (Bootstrap .toast component, brand-themed) ─────────────────────────
 function Toast({ toast, onDismiss }) {
   useEffect(() => {
@@ -248,7 +340,7 @@ function Toast({ toast, onDismiss }) {
     </div>
   );
 }
-
+ 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const navigate = useNavigate();
@@ -258,7 +350,8 @@ export default function App() {
   const [loading, setLoading]         = useState(false);
   const [toast, setToast]             = useState(null);
   const [qIdx, setQIdx]               = useState(0);
-  const [chosen, setChosen]           = useState(null);
+  const [result, setResult]           = useState(null);   // { score, style, reaction, transcript }
+  const [judging, setJudging]         = useState(false);
   const [scores, setScores]           = useState([]);
   const [totalScore, setTotalScore]   = useState(0);
   const [timeLeft, setTimeLeft]       = useState(30);
@@ -268,24 +361,22 @@ export default function App() {
   const [animKey, setAnimKey]         = useState(0);
   const finalScoreRef                 = useRef(0);
   const timerRef                      = useRef(null);
-
-  const MAX_SCORE = 6 * 25;
-
+  const submitRef                     = useRef(() => {});  // latest handleSubmit, for the timer
+  const speech                        = useSpeech();
+ 
+  const MAX_SCORE = 6 * MAX_PER_Q;
+ 
   useEffect(() => {
     fetchLeaderboard().then(setLeaderboard).catch(() => {});
   }, []);
-
+ 
   useEffect(() => {
     if (!timerOn) { clearInterval(timerRef.current); return; }
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
-          const q = questions[qIdx];
-          if (q) {
-            const safe = q.options.find(o => o.type === "SAFE") || q.options[0];
-            handlePick(safe);
-          }
+          submitRef.current();   // time's up — score whatever was said (or 0 if silent)
           return 0;
         }
         return t - 1;
@@ -293,10 +384,10 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timerRef.current);
   }, [timerOn, qIdx]); // eslint-disable-line
-
+ 
   function stopTimer()  { setTimerOn(false); clearInterval(timerRef.current); }
   function startTimer() { setTimeLeft(30); setTimerOn(true); }
-
+ 
   async function startGame() {
     if (!name.trim()) return;
     setLoading(true);
@@ -306,29 +397,61 @@ export default function App() {
       qs = await generateQuestions();
     } catch {
       qs = FALLBACK_QUESTIONS;
-      setToast({ type: "warning", message: "Claude unavailable — using built-in questions" });
+      setToast({ type: "warning", message: "Claude unavailable — using built-in scenarios" });
     }
     setLoading(false);
     setQuestions(qs);
-    setQIdx(0); setScores([]); setTotalScore(0); setChosen(null);
+    setQIdx(0); setScores([]); setTotalScore(0);
+    setResult(null); setJudging(false); speech.reset();
     finalScoreRef.current = 0;
     setScreen("game");
     setAnimKey(k => k + 1);
     startTimer();
   }
-
-  function handlePick(option) {
+ 
+  async function handleSubmit() {
+    if (result || judging) return;          // score each question once
+    speech.stop();
     stopTimer();
-    if (chosen) return;
-    setChosen(option);
+    const answer = speech.transcript.trim();
+    if (!answer) {
+      setResult({ score: 0, style: "SAFE", reaction: "Silence! Even the crickets walked out.", transcript: "" });
+      return;
+    }
+    setJudging(true);
+    let r;
+    try {
+      r = await scoreAnswer(q.scenario, answer);
+    } catch {
+      r = { score: 0, style: "SAFE", reaction: "Our judge stepped out — no score this round." };
+      setToast({ type: "warning", message: "Couldn't reach the judge — scored 0 this round" });
+    }
+    setResult({ ...r, transcript: answer });
+    setJudging(false);
   }
-
+  submitRef.current = handleSubmit;
+ 
+  // Backup path: pick a preset option for fixed points (no Claude call).
+  function handlePickOption(opt) {
+    if (result || judging) return;
+    speech.stop();
+    stopTimer();
+    setResult({
+      score: OPTION_TYPES[opt.type].points,
+      style: opt.type,
+      reaction: q.reaction?.[opt.type] || "Solid pick.",
+      transcript: opt.text,
+      picked: true,
+    });
+  }
+ 
   async function handleNext() {
-    const pts = chosen ? OPTION_TYPES[chosen.type].points : 0;
+    const pts = result?.score || 0;
+    const style = result?.style || "SAFE";
     const newTotal = totalScore + pts;
-    setScores(prev => [...prev, { type: chosen?.type || "SAFE", pts }]);
+    setScores(prev => [...prev, { type: style, pts }]);
     setTotalScore(newTotal);
-
+ 
     if (qIdx + 1 >= questions.length) {
       finalScoreRef.current = newTotal;
       const hq = getHQTitle(newTotal, MAX_SCORE);
@@ -347,28 +470,28 @@ export default function App() {
       setScreen("result");
       return;
     }
-
+ 
     setQIdx(i => i + 1);
-    setChosen(null);
+    setResult(null); setJudging(false); speech.reset();
     setAnimKey(k => k + 1);
     startTimer();
   }
-
+ 
   const q = questions[qIdx];
   const displayFinalScore = finalScoreRef.current > 0
     ? finalScoreRef.current
-    : scores.reduce((s, r) => s + r.pts, 0) + (chosen ? OPTION_TYPES[chosen.type]?.points || 0 : 0);
+    : scores.reduce((s, r) => s + r.pts, 0) + (result ? result.score : 0);
   const hqInfo = getHQTitle(displayFinalScore, MAX_SCORE);
   const myRank = leaderboard.findIndex(e => e.name === name.trim() && e.score === displayFinalScore) + 1;
-  const allScores = scores.concat(chosen ? [{ type: chosen.type }] : []);
+  const allScores = scores.concat(result ? [{ type: result.style }] : []);
   const styleCount = allScores.reduce((a, s) => { a[s.type] = (a[s.type] || 0) + 1; return a; }, {});
   const dominantStyle = Object.entries(styleCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "FUNNY";
-
+ 
   return (
     <div className="app-wrap min-vh-100 d-flex align-items-center justify-content-center p-3 position-relative overflow-hidden">
       <Confetti active={showConfetti} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
-
+ 
       {/* ── HOME ─────────────────────────────────────────────────────────────── */}
       {screen === "home" && (
         <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }}>
@@ -420,17 +543,17 @@ export default function App() {
                 }}>{w.text}</span>
               ))}
             </div>
-
+ 
             <div className="col-md-6 card-body p-4 p-md-5 d-flex flex-column justify-content-center">
               <div className="text-center mb-3">
                 <img className="d-block mx-auto mb-2" src="https://imgcdn.analyticsvidhya.com/dhs/av_dhs_logo.svg" alt="Analytics Vidhya DataHack Summit" style={{ height: 52 }} />
                 <h1 className="dp curtain display-5 fw-bolder lh-1 m-0">Know Your<br />Humour Quotient</h1>
                 <p className="sn text-muted mt-2 mb-0 small lh-base">
-                  6 wild scenarios. 4 options each — funny, boring, sarcastic, unhinged.<br />
-                  <strong className="fw-medium">Can you spot the funny answer?</strong>
+                  6 wild scenarios. Speak your funniest answer — our AI judges your wit (up to 25 pts).<br />
+                  <strong className="fw-medium">Stuck? Pick from 4 backup options instead.</strong>
                 </p>
               </div>
-
+ 
               <div className="row g-2 mb-3">
                 {Object.entries(OPTION_TYPES).map(([key, val]) => (
                   <div key={key} className="col-6">
@@ -438,13 +561,13 @@ export default function App() {
                       <div className="fs-5">{val.label.split(" ")[0]}</div>
                       <div>
                         <div className="sn type-label small fw-semibold">{val.label.slice(3)}</div>
-                        <div className="sn text-muted" style={{ fontSize: 11 }}>+{val.points} points</div>
+                        <div className="sn text-muted" style={{ fontSize: 11 }}>{val.desc}</div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-
+ 
               <div className="mb-3">
                 <label htmlFor="stageName" className="form-label sn small text-muted text-uppercase" style={{ letterSpacing: "0.1em" }}>Your stage name</label>
                 <input
@@ -458,7 +581,7 @@ export default function App() {
                   autoFocus
                 />
               </div>
-
+ 
               <div className="d-grid gap-2">
                 <button className="btn btn-primary btn-lg fw-bold py-2" onClick={startGame} disabled={!name.trim() || loading}>
                   {loading ? "Loading…" : "Unlock Your HQ!"}
@@ -471,7 +594,7 @@ export default function App() {
           </div>
         </div>
       )}
-
+ 
       {/* ── LOADING ──────────────────────────────────────────────────────────── */}
       {screen === "loading" && (
         <div className="text-center">
@@ -481,7 +604,7 @@ export default function App() {
           <div className="think-dots"><span /><span /><span /></div>
         </div>
       )}
-
+ 
       {/* ── GAME ─────────────────────────────────────────────────────────────── */}
       {screen === "game" && q && (
         <div className="card stage-card slide-up w-100" style={{ maxWidth: 1200 }} key={animKey}>
@@ -499,68 +622,124 @@ export default function App() {
                 <div className="dp fs-3 lh-1">{totalScore}</div>
               </div>
             </div>
-
+ 
             <div className="progress mb-3" role="progressbar" aria-valuenow={qIdx + 1} aria-valuemin={0} aria-valuemax={questions.length}>
               <div className="progress-bar" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, transition: "width .4s ease" }} />
             </div>
-
+ 
             <div className="alert scenario-alert rounded-4 p-3 mb-3" role="region">
               <div className="sn small text-uppercase mb-2" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
               <p className="dp m-0 fst-italic fs-5 lh-base">"{q.scenario}"</p>
             </div>
-
-            <div className="d-grid gap-2 mb-3">
-              {q.options.map((opt, i) => {
-                const st = OPTION_TYPES[opt.type];
-                const isChosen = chosen?.type === opt.type;
-                const revealed = !!chosen;
-                return (
+ 
+            {/* Answer stage — speak (or type) your funniest response */}
+            {!result && !judging && (
+              <div className="answer-stage mb-3">
+                {speech.supported && (
+                  <div className="text-center mb-3">
+                    <button
+                      type="button"
+                      className={`mic-btn${speech.listening ? " recording" : ""}`}
+                      onClick={speech.listening ? speech.stop : speech.start}
+                      aria-pressed={speech.listening}
+                      aria-label={speech.listening ? "Stop recording" : "Start recording"}
+                    >
+                      🎤
+                    </button>
+                    <div className="sn small text-muted mt-2">
+                      {speech.listening
+                        ? "Listening… say your funniest answer, then tap to stop"
+                        : "Tap the mic and say your answer out loud"}
+                    </div>
+                  </div>
+                )}
+                {!speech.supported && (
+                  <div className="sn small text-muted mb-2">
+                    🎤 Voice input isn't supported in this browser — type your funniest answer instead.
+                  </div>
+                )}
+                <textarea
+                  className="form-control answer-box"
+                  rows={3}
+                  placeholder={speech.supported
+                    ? "Your words appear here as you speak — you can also type or tweak them"
+                    : "Type your funniest answer…"}
+                  value={speech.transcript}
+                  onChange={e => speech.edit(e.target.value)}
+                />
+                <div className="d-grid gap-2 col-md-6 mx-auto mt-3">
                   <button
-                    key={i}
-                    className={`btn opt-btn d-flex flex-row align-items-center justify-content-between gap-2 p-3 rounded-4${revealed ? ` ${st.key}` : ""}${isChosen ? " chosen" : ""}${revealed && !isChosen ? " dimmed" : ""}`}
-                    style={isChosen ? { boxShadow: `0 0 20px ${st.color}30` } : undefined}
-                    onClick={() => handlePick(opt)}
-                    disabled={!!chosen}
+                    className="btn btn-primary btn-lg fw-bold py-2"
+                    onClick={handleSubmit}
+                    disabled={!speech.transcript.trim()}
                   >
-                    <span className="text-start flex-grow-1">{opt.text}</span>
-                    {revealed && (
-                      <span className={`badge type-badge ${st.key} flex-shrink-0`} style={{ fontSize: 10 }}>
-                        {st.label}
-                      </span>
-                    )}
+                    Submit Answer
                   </button>
-                );
-              })}
-            </div>
-
-            {chosen && (
-              <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[chosen.type].key}`} role="status">
-                <div>
-                  <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
-                    {chosen.type === "FUNNY" ? "Comedy Gold" : chosen.type === "SAFE" ? "Plays It Safe" : chosen.type === "SARCASTIC" ? "Snarky Genius" : "Certified Chaos"}
-                  </div>
-                  <p className="dp m-0 fst-italic lh-sm">"{q.reaction?.[chosen.type] || "Interesting choice."}"</p>
                 </div>
-                <div className="text-center flex-shrink-0">
-                  <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[chosen.type].color }}>
-                    +{OPTION_TYPES[chosen.type].points}
-                  </div>
-                  <div className="sn small text-muted">points</div>
+ 
+                {/* Backup options — for when inspiration doesn't strike */}
+                <div className="or-divider d-flex align-items-center gap-2 my-3">
+                  <span className="flex-grow-1" />
+                  <span className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>
+                    or, stuck? pick one
+                  </span>
+                  <span className="flex-grow-1" />
+                </div>
+                <div className="d-grid gap-2">
+                  {q.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      className="btn opt-btn d-flex flex-row align-items-center justify-content-between gap-2 p-3 rounded-4"
+                      onClick={() => handlePickOption(opt)}
+                    >
+                      <span className="text-start flex-grow-1">{opt.text}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
-
-            {chosen && (
-              <div className="d-grid gap-2 col-md-6 mx-auto">
-                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={handleNext}>
-                  {qIdx + 1 >= questions.length ? "See Your HQ" : "Next Question"}
-                </button>
+ 
+            {judging && (
+              <div className="text-center py-4">
+                <div className="think-dots"><span /><span /><span /></div>
+                <p className="sn text-muted mt-3 mb-0">The judge is weighing your wit…</p>
               </div>
+            )}
+ 
+            {result && (
+              <>
+                {result.transcript && (
+                  <div className="alert reaction-box rounded-4 p-3 mb-3 safe" role="status">
+                    <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.12em", fontSize: 10, color: "var(--text-muted)" }}>{result.picked ? "You picked" : "You said"}</div>
+                    <p className="dp m-0 fst-italic lh-sm">"{result.transcript}"</p>
+                  </div>
+                )}
+                <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[result.style].key}`} role="status">
+                  <div>
+                    <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
+                      {OPTION_TYPES[result.style].label}
+                    </div>
+                    <p className="dp m-0 fst-italic lh-sm">"{result.reaction}"</p>
+                  </div>
+                  <div className="text-center flex-shrink-0">
+                    <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[result.style].color }}>
+                      +{result.score}
+                    </div>
+                    <div className="sn small text-muted">points</div>
+                  </div>
+                </div>
+ 
+                <div className="d-grid gap-2 col-md-6 mx-auto">
+                  <button className="btn btn-primary btn-lg fw-bold py-2" onClick={handleNext}>
+                    {qIdx + 1 >= questions.length ? "See Your HQ" : "Next Question"}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
-
+ 
       {/* ── RESULT ───────────────────────────────────────────────────────────── */}
       {screen === "result" && (
         <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }}>
@@ -570,12 +749,12 @@ export default function App() {
               <div className="display-3 mb-1">{hqInfo.emoji}</div>
               <h2 className="dp curtain display-5 fw-bolder mb-1">{hqInfo.title}</h2>
               <p className="sn text-muted mb-4">{hqInfo.sub}</p>
-
+ 
               <div className="mb-3">
                 <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.2em", fontSize: 12 }}>Humour Quotient</div>
                 <div className="dp display-1 fw-bolder lh-1 text-white">{displayFinalScore}/{MAX_SCORE}</div>
               </div>
-
+ 
               {dominantStyle && OPTION_TYPES[dominantStyle] && (
                 <div>
                   <div className="sn small text-muted text-uppercase mb-2" style={{ letterSpacing: "0.1em" }}>Your Humour DNA</div>
@@ -585,7 +764,7 @@ export default function App() {
                 </div>
               )}
             </div>
-
+ 
             <div className="col-md-6 card-body p-4 p-md-5 d-flex flex-column">
               <div className="text-start mb-3 flex-grow-1">
                 <div className="sn small text-muted text-uppercase mb-3" style={{ letterSpacing: "0.1em", fontSize: 10 }}>Round by round</div>
@@ -602,7 +781,7 @@ export default function App() {
                   );
                 })}
               </div>
-
+ 
               {myRank > 0 && (
                 <div className="sn text-center mb-3">
                   {myRank === 1 ? "🥇 Top of the leaderboard!"
@@ -611,7 +790,7 @@ export default function App() {
                     : <>You're <span className="sn fw-bold" style={{ color: "var(--gold)" }}>#{myRank}</span> on the leaderboard!</>}
                 </div>
               )}
-
+ 
               <div className="d-grid gap-2">
                 <button className="btn btn-primary btn-lg fw-bold py-2" onClick={() => setScreen("home")}>Play Again</button>
                 <button className="btn btn-link" onClick={() => navigate("/leaderboard")}>View Leaderboard</button>
