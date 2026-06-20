@@ -23,6 +23,7 @@ if (usePostgres) {
     CREATE TABLE IF NOT EXISTS leaderboard (
       id          BIGSERIAL PRIMARY KEY,
       name        TEXT    NOT NULL,
+      email       TEXT,
       score       INTEGER NOT NULL,
       title       TEXT    NOT NULL,
       emoji       TEXT    NOT NULL,
@@ -32,6 +33,7 @@ if (usePostgres) {
     )
   `)
     .then(() => pool.query("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS duration_ms INTEGER"))
+    .then(() => pool.query("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS email TEXT"))
     .then(() => console.log("PostgreSQL ready"))
     .catch(err => console.error("PostgreSQL init failed:", err.message));
 } else {
@@ -41,6 +43,7 @@ if (usePostgres) {
     CREATE TABLE IF NOT EXISTS leaderboard (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       name        TEXT    NOT NULL,
+      email       TEXT,
       score       INTEGER NOT NULL,
       title       TEXT    NOT NULL,
       emoji       TEXT    NOT NULL,
@@ -48,8 +51,9 @@ if (usePostgres) {
       duration_ms INTEGER
     )
   `);
-  const hasDuration = db.prepare("PRAGMA table_info(leaderboard)").all().some(c => c.name === "duration_ms");
-  if (!hasDuration) db.exec("ALTER TABLE leaderboard ADD COLUMN duration_ms INTEGER");
+  const cols = db.prepare("PRAGMA table_info(leaderboard)").all().map(c => c.name);
+  if (!cols.includes("duration_ms")) db.exec("ALTER TABLE leaderboard ADD COLUMN duration_ms INTEGER");
+  if (!cols.includes("email"))       db.exec("ALTER TABLE leaderboard ADD COLUMN email TEXT");
   console.log("SQLite ready");
 }
 
@@ -66,14 +70,14 @@ async function getLeaderboard() {
   ).all();
 }
 
-async function insertEntry(name, score, title, emoji, time, durationMs) {
+async function insertEntry(name, email, score, title, emoji, time, durationMs) {
   if (usePostgres) {
     await pool.query(
-      "INSERT INTO leaderboard (name, score, title, emoji, time, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)",
-      [name, score, title, emoji, time, durationMs]
+      "INSERT INTO leaderboard (name, email, score, title, emoji, time, duration_ms) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [name, email, score, title, emoji, time, durationMs]
     );
   } else {
-    db.prepare("INSERT INTO leaderboard (name, score, title, emoji, time, duration_ms) VALUES (?, ?, ?, ?, ?, ?)").run(name, score, title, emoji, time, durationMs);
+    db.prepare("INSERT INTO leaderboard (name, email, score, title, emoji, time, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?)").run(name, email, score, title, emoji, time, durationMs);
   }
 }
 
@@ -110,13 +114,17 @@ app.get("/api/leaderboard", async (_req, res) => {
   }
 });
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 app.post("/api/leaderboard", async (req, res) => {
-  const { name, score, title, emoji, time, durationMs } = req.body;
+  const { name, email, score, title, emoji, time, durationMs } = req.body;
   if (!name || score == null || !title || !emoji || !time)
     return res.status(400).json({ error: "Missing required fields" });
+  if (typeof email !== "string" || !EMAIL_RE.test(email.trim()))
+    return res.status(400).json({ error: "Invalid email" });
   const duration = Number.isFinite(durationMs) ? Math.round(durationMs) : null;
   try {
-    await insertEntry(name, score, title, emoji, time, duration);
+    await insertEntry(name, email.trim().toLowerCase(), score, title, emoji, time, duration);
     res.json({ leaderboard: await getLeaderboard() });
   } catch (err) {
     console.error(err);

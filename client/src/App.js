@@ -72,6 +72,9 @@ function scoreToStyle(score) {
   return "SAFE";
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (e) => typeof e === "string" && EMAIL_RE.test(e.trim());
+
 function narrate(text, onDone) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   try { window.speechSynthesis.cancel(); } catch { /* no-op */ }
@@ -325,6 +328,7 @@ export default function App() {
   const navigate = useNavigate();
   const [screen, setScreen]           = useState("home");
   const [name, setName]               = useState("");
+  const [email, setEmail]             = useState("");
   const [questions, setQuestions]     = useState([]);
   const [loading, setLoading]         = useState(false);
   const [toast, setToast]             = useState(null);
@@ -386,7 +390,7 @@ export default function App() {
   function stopTimer()  { setTimerOn(false); clearInterval(timerRef.current); }
  
   async function startGame() {
-    if (!name.trim()) return;
+    if (!name.trim() || !isValidEmail(email)) return;
     setLoading(true);
     setScreen("loading");
     let qs;
@@ -442,7 +446,7 @@ export default function App() {
       const hq = getHQTitle(newTotal, MAX_SCORE);
       if (newTotal >= MAX_SCORE * 0.55) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 3000); }
       const entry = {
-        name: name.trim(), score: newTotal,
+        name: name.trim(), email: email.trim().toLowerCase(), score: newTotal,
         title: hq.title, emoji: hq.emoji,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         durationMs: Date.now() - gameStartRef.current,
@@ -561,14 +565,28 @@ export default function App() {
                   placeholder="Enter your name…"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && name.trim() && !loading && startGame()}
                   maxLength={20}
                   autoFocus
                 />
               </div>
+
+              <div className="mb-3">
+                <label htmlFor="playerEmail" className="form-label sn small text-muted text-uppercase" style={{ letterSpacing: "0.1em" }}>Your email</label>
+                <input
+                  id="playerEmail"
+                  type="email"
+                  className="form-control form-control-lg"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && name.trim() && isValidEmail(email) && !loading && startGame()}
+                  maxLength={120}
+                  autoComplete="email"
+                />
+              </div>
  
               <div className="d-grid gap-2">
-                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={startGame} disabled={!name.trim() || loading}>
+                <button className="btn btn-primary btn-lg fw-bold py-2" onClick={startGame} disabled={!name.trim() || !isValidEmail(email) || loading}>
                   {loading ? "Loading…" : "Unlock Your HQ!"}
                 </button>
                 <button className="btn btn-link" onClick={() => navigate("/leaderboard")}>
