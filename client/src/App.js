@@ -71,6 +71,24 @@ function scoreToStyle(score) {
   if (score >= 7)  return "UNHINGED";
   return "SAFE";
 }
+
+function narrate(text, onDone) {
+  if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
+  try { window.speechSynthesis.cancel(); } catch { /* no-op */ }
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-IN";
+  u.rate = 1.05;
+  u.pitch = 1.0;
+  u.onend = () => onDone?.();
+  u.onerror = () => onDone?.();
+  window.speechSynthesis.speak(u);
+}
+
+function cancelNarration() {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch { /* no-op */ }
+  }
+}
  
 const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players normally SPEAK their own answer out loud, but each scenario also offers 4 backup options to pick from if they're stuck.
  
@@ -364,6 +382,7 @@ export default function App() {
   const [totalScore, setTotalScore]   = useState(0);
   const [timeLeft, setTimeLeft]       = useState(30);
   const [timerOn, setTimerOn]         = useState(false);
+  const [narrating, setNarrating]     = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [animKey, setAnimKey]         = useState(0);
@@ -378,6 +397,23 @@ export default function App() {
   useEffect(() => {
     fetchLeaderboard().then(setLeaderboard).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (screen !== "game") return;
+    const scenario = questions[qIdx]?.scenario;
+    if (!scenario) return;
+    setTimeLeft(30);
+    setNarrating(true);
+    narrate(scenario, () => {
+      setNarrating(false);
+      setTimeLeft(30);
+      setTimerOn(true);
+    });
+    return () => {
+      cancelNarration();
+      setNarrating(false);
+    };
+  }, [screen, qIdx, questions]); // eslint-disable-line
  
   useEffect(() => {
     if (!timerOn) { clearInterval(timerRef.current); return; }
@@ -395,7 +431,6 @@ export default function App() {
   }, [timerOn, qIdx]); // eslint-disable-line
  
   function stopTimer()  { setTimerOn(false); clearInterval(timerRef.current); }
-  function startTimer() { setTimeLeft(30); setTimerOn(true); }
  
   async function startGame() {
     if (!name.trim()) return;
@@ -416,12 +451,12 @@ export default function App() {
     gameStartRef.current = Date.now();
     setScreen("game");
     setAnimKey(k => k + 1);
-    startTimer();
   }
  
   async function handleSubmit() {
     if (result || judging) return;          // score each question once
     speech.stop();
+    cancelNarration(); setNarrating(false);
     stopTimer();
     const answer = speech.transcript.trim();
     if (!answer) {
@@ -445,6 +480,7 @@ export default function App() {
   function handlePickOption(opt) {
     if (result || judging) return;
     speech.stop();
+    cancelNarration(); setNarrating(false);
     stopTimer();
     setResult({
       score: OPTION_TYPES[opt.type].points,
@@ -485,7 +521,6 @@ export default function App() {
     setQIdx(i => i + 1);
     setResult(null); setJudging(false); speech.reset();
     setAnimKey(k => k + 1);
-    startTimer();
   }
  
   const q = questions[qIdx];
@@ -639,7 +674,14 @@ export default function App() {
             </div>
  
             <div className="alert scenario-alert rounded-4 p-3 mb-3" role="region">
-              <div className="sn small text-uppercase mb-2" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
+              <div className="d-flex justify-content-between align-items-center mb-2" style={{ gap: 8 }}>
+                <div className="sn small text-uppercase" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
+                {narrating && (
+                  <span className="sn small text-uppercase fw-bold" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--purple)" }} aria-live="polite">
+                    🔊 Narrating…
+                  </span>
+                )}
+              </div>
               <p className="dp m-0 fs-5 lh-base">"{q.scenario}"</p>
             </div>
  
