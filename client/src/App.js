@@ -90,35 +90,24 @@ function cancelNarration() {
   }
 }
  
-const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players normally SPEAK their own answer out loud, but each scenario also offers 4 backup options to pick from if they're stuck.
- 
+const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players SPEAK or TYPE their own funny answer. To help them when they're stuck, each scenario also offers a few inspiration keywords — short, evocative words or short phrases the player can riff on or weave into their answer.
+
 Return ONLY a valid JSON array. No markdown, no explanation, just the array. Use this exact shape:
 [
   {
     "scenario": "A relatable/absurd 1-2 sentence situation that invites a funny response (end with a prompt like 'What do you say?' / 'What do you do?')",
-    "options": [
-      { "type": "FUNNY",     "text": "The clever, genuinely funny answer that shows wit (max 20 words)" },
-      { "type": "SAFE",      "text": "The boring, predictable, overly professional answer (max 20 words)" },
-      { "type": "SARCASTIC", "text": "The dry, sarcastic answer dripping with irony (max 20 words)" },
-      { "type": "UNHINGED",  "text": "The completely unhinged, chaotic, nonsensical answer (max 20 words)" }
-    ],
-    "reaction": {
-      "FUNNY":     "Short funny reaction when they pick this answer (max 12 words)",
-      "SAFE":      "Gently roast their boring choice (max 12 words)",
-      "SARCASTIC": "Appreciate the sarcasm (max 12 words)",
-      "UNHINGED":  "React to the chaos (max 12 words)"
-    }
+    "keywords": ["4-5 short, vivid words or 2-word phrases tied to this scenario; concrete nouns/verbs/objects that spark a joke; not full sentences"]
   }
 ]
- 
-Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible. Shuffle option order randomly. Return only the JSON array of 6 objects.`;
+
+Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible. Return only the JSON array of 6 objects.`;
  
 function parseQuestions(raw) {
   try {
     const arr = JSON.parse(raw.replace(/```json|```/g, "").trim());
     const cleaned = (Array.isArray(arr) ? arr : []).filter(q =>
       q && typeof q.scenario === "string" && q.scenario.trim() &&
-      Array.isArray(q.options) && q.options.length >= 2
+      Array.isArray(q.keywords) && q.keywords.length >= 1
     );
     return cleaned.length ? cleaned : FALLBACK_QUESTIONS;
   } catch {
@@ -175,67 +164,31 @@ Score guide: 0-6 boring/safe/no real attempt; 7-12 chaotic or weak attempt; 13-1
   return parseScore(raw);
 }
  
-// Fallbacks (scenario + backup options) used when Claude is unreachable.
+// Fallbacks used when Claude is unreachable — scenario + a few inspiration keywords.
 const FALLBACK_QUESTIONS = [
   {
     scenario: "You accidentally liked your ex's 3-year-old Instagram photo at 2am. They've seen it. What do you do?",
-    options: [
-      { type: "FUNNY",     text: "Like 47 more photos immediately. Commit to the bit." },
-      { type: "SAFE",      text: "Quickly unlike it and pretend nothing happened." },
-      { type: "SARCASTIC", text: "Send them a LinkedIn connection request to balance it out." },
-      { type: "UNHINGED",  text: "Delete Instagram, move cities, adopt a new identity." },
-    ],
-    reaction: { FUNNY: "Chaotic but respect — you own your mistakes!", SAFE: "Classic ostrich energy. They definitely saw it.", SARCASTIC: "The professional pivot no one asked for. Chef's kiss.", UNHINGED: "Extreme? Yes. Effective? Also yes." }
+    keywords: ["2am", "ex", "double-tap", "new identity", "commit"],
   },
   {
     scenario: "Your boss asks 'Any ideas?' and you accidentally say your lunch order out loud.",
-    options: [
-      { type: "SARCASTIC", text: "Maintain eye contact. Slowly nod. 'Yes. Those are my ideas.'" },
-      { type: "FUNNY",     text: "Pivot: 'The dal makhani strategy — rich, slow-cooked, long-term thinking.'" },
-      { type: "SAFE",      text: "Apologise and say you were thinking about something else." },
-      { type: "UNHINGED",  text: "Stand up, leave, come back with actual dal makhani for everyone." },
-    ],
-    reaction: { SARCASTIC: "Legendary power move. The silence must have been deafening.", FUNNY: "You turned lunch into business strategy. Promoted.", SAFE: "Missed a golden opportunity there, chief.", UNHINGED: "You solved morale AND lunch. Visionary." }
+    keywords: ["dal makhani", "strategy", "pivot", "lunch", "eye contact"],
   },
   {
     scenario: "A pigeon walks into your video call and sits directly in front of your camera.",
-    options: [
-      { type: "UNHINGED",  text: "Introduce the pigeon as your co-founder. Give it screen time." },
-      { type: "FUNNY",     text: "That's Dave from product. He doesn't talk much but has great instincts." },
-      { type: "SAFE",      text: "Shoo it away and apologise for the disruption." },
-      { type: "SARCASTIC", text: "At least Dave shows up on time, unlike the rest of the team." },
-    ],
-    reaction: { UNHINGED: "Investors love a founder story.", FUNNY: "Dave now has a better reputation than half your team.", SAFE: "Dave wanted to be seen. You denied him that.", SARCASTIC: "Dave's attendance record is impeccable, to be fair." }
+    keywords: ["co-founder", "Dave", "introduce", "instincts", "attendance"],
   },
   {
     scenario: "You send a meme to your work WhatsApp group by mistake. The CEO reacts with 👀.",
-    options: [
-      { type: "FUNNY",     text: "Reply: 'Glad we're aligned on company culture, sir.'" },
-      { type: "SAFE",      text: "Send a formal apology and say it was meant for another group." },
-      { type: "SARCASTIC", text: "React back with 👀 and see who blinks first." },
-      { type: "UNHINGED",  text: "Double down. Send five more memes. Make it a vibe." },
-    ],
-    reaction: { FUNNY: "Reframed a disaster as culture-building. Impressive.", SAFE: "The safe choice. Also the boring one.", SARCASTIC: "A staring contest with the CEO. The audacity.", UNHINGED: "You either get fired or become VP of Culture. No in-between." }
+    keywords: ["company culture", "double down", "CEO", "blink first", "vibe"],
   },
   {
     scenario: "Your phone rings loudly in a silent cinema during the most emotional scene.",
-    options: [
-      { type: "SAFE",      text: "Immediately silence it and sink into your seat in shame." },
-      { type: "SARCASTIC", text: "Whisper: 'Can't talk, someone's dying onscreen too.'" },
-      { type: "UNHINGED",  text: "Answer it. Put it on speaker. It's your mom. Let her talk." },
-      { type: "FUNNY",     text: "Let it ring once more dramatically, then whisper 'It was the killer.'" },
-    ],
-    reaction: { SAFE: "The crowd forgave you. Barely.", SARCASTIC: "Context-aware. Rude but context-aware.", UNHINGED: "Your mom is now part of the cinematic experience.", FUNNY: "You improved the film. The director owes you royalties." }
+    keywords: ["mom", "speaker", "killer", "subtitles", "shame"],
   },
   {
     scenario: "You walk into the wrong meeting room mid-presentation. 15 strangers stare at you.",
-    options: [
-      { type: "FUNNY",     text: "Grab a marker and write a number on the whiteboard. 'As I was saying.'" },
-      { type: "SAFE",      text: "Apologise quietly and back out of the room." },
-      { type: "UNHINGED",  text: "Sit down. Take notes. Stay for the whole thing. Network after." },
-      { type: "SARCASTIC", text: "Say 'Great, I see you've all reviewed my pre-read.' Sit down." },
-    ],
-    reaction: { FUNNY: "You claimed authority over a room that wasn't yours. Legend.", SAFE: "Technically correct. Spiritually defeated.", UNHINGED: "You attended a meeting AND made new friends. Efficient.", SARCASTIC: "The pre-read bluff. A classic power move." }
+    keywords: ["whiteboard", "pre-read", "authority", "network", "marker"],
   },
 ];
  
@@ -476,20 +429,6 @@ export default function App() {
   }
   submitRef.current = handleSubmit;
  
-  // Backup path: pick a preset option for fixed points (no Claude call).
-  function handlePickOption(opt) {
-    if (result || judging) return;
-    speech.stop();
-    cancelNarration(); setNarrating(false);
-    stopTimer();
-    setResult({
-      score: OPTION_TYPES[opt.type].points,
-      style: opt.type,
-      reaction: q.reaction?.[opt.type] || "Solid pick.",
-      transcript: opt.text,
-      picked: true,
-    });
-  }
  
   async function handleNext() {
     const pts = result?.score || 0;
@@ -595,8 +534,8 @@ export default function App() {
                 <img className="d-block mx-auto mb-2" src="https://imgcdn.analyticsvidhya.com/dhs/av_dhs_logo.svg" alt="Analytics Vidhya DataHack Summit" style={{ height: 52 }} />
                 <h1 className="dp curtain display-5 fw-bolder lh-1 m-0">Know Your<br />Humour Quotient</h1>
                 <p className="sn text-muted mt-2 mb-0 small lh-base">
-                  6 wild scenarios. Speak your funniest answer — our AI judges your wit (up to 25 pts).<br />
-                  <strong className="fw-medium">Stuck? Pick from 4 backup options instead.</strong>
+                  6 wild scenarios. Speak or type your funniest answer — our AI judges your wit (up to 25 pts).<br />
+                  <strong className="fw-medium">Stuck? Tap a hint word to drop it into your answer.</strong>
                 </p>
               </div>
  
@@ -683,6 +622,24 @@ export default function App() {
                 )}
               </div>
               <p className="dp m-0 fs-5 lh-base">"{q.scenario}"</p>
+              {Array.isArray(q.keywords) && q.keywords.length > 0 && (
+                <div className="d-flex flex-wrap align-items-center mt-3" style={{ gap: 6 }}>
+                  <span className="sn small text-uppercase text-muted me-1" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Hints</span>
+                  {q.keywords.map((kw, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="btn btn-sm rounded-pill px-3 py-1"
+                      style={{ background: "var(--surface-2, rgba(255,255,255,.06))", color: "var(--fg)", fontSize: 12, border: "1px solid var(--border, rgba(255,255,255,.12))" }}
+                      onClick={() => speech.edit((speech.transcript ? speech.transcript.trimEnd() + " " : "") + kw)}
+                      disabled={result || judging}
+                      title="Click to add to your answer"
+                    >
+                      {kw}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
  
             {/* Answer stage — speak (or type) your funniest response */}
@@ -730,25 +687,6 @@ export default function App() {
                   </button>
                 </div>
  
-                {/* Backup options — for when inspiration doesn't strike */}
-                <div className="or-divider d-flex align-items-center gap-2 my-3">
-                  <span className="flex-grow-1" />
-                  <span className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>
-                    or, stuck? pick one
-                  </span>
-                  <span className="flex-grow-1" />
-                </div>
-                <div className="d-grid gap-2">
-                  {q.options.map((opt, i) => (
-                    <button
-                      key={i}
-                      className="btn opt-btn d-flex flex-row align-items-center justify-content-between gap-2 p-3 rounded-4"
-                      onClick={() => handlePickOption(opt)}
-                    >
-                      <span className="text-start flex-grow-1">{opt.text}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
  
