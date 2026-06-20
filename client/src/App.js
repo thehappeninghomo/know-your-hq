@@ -53,16 +53,24 @@ const BRAIN_WORDS = [
 ];
  
 // Comedic styles. `points` is awarded when a player PICKS a preset option of that
-// type; `desc` is the home-screen blurb; the style also drives the "Humour DNA" badge.
-// A spoken/typed answer is scored 0-MAX_PER_Q by Claude instead.
+// type; each preset's score sits inside its tag's range so presets and spoken
+// answers share the same scale (see scoreToStyle below).
+// 19-25 FUNNY · 13-18 SARCASTIC · 7-12 UNHINGED · 0-6 SAFE
 const OPTION_TYPES = {
   FUNNY:    { points: 25, color: COLORS.gold,     label: "😂 Genuinely Funny",    key: "funny",     desc: "Clever & witty"   },
   SARCASTIC:{ points: 18, color: COLORS.teal,     label: "😏 Sarcastic",          key: "sarcastic", desc: "Dry & ironic"     },
-  UNHINGED: { points: 15, color: COLORS.coral,    label: "🤪 Completely Unhinged", key: "unhinged",  desc: "Chaotic energy"   },
-  SAFE:     { points: 10, color: COLORS.slateMid, label: "😐 Safe & Boring",      key: "safe",      desc: "Played it safe"   },
+  UNHINGED: { points: 12, color: COLORS.coral,    label: "🤪 Completely Unhinged", key: "unhinged",  desc: "Chaotic energy"   },
+  SAFE:     { points: 6,  color: COLORS.slateMid, label: "😐 Safe & Boring",      key: "safe",      desc: "Played it safe"   },
 };
  
 const MAX_PER_Q = 25; // highest score Claude can award a spoken answer (also FUNNY option's points)
+
+function scoreToStyle(score) {
+  if (score >= 19) return "FUNNY";
+  if (score >= 13) return "SARCASTIC";
+  if (score >= 7)  return "UNHINGED";
+  return "SAFE";
+}
  
 const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players normally SPEAK their own answer out loud, but each scenario also offers 4 backup options to pick from if they're stuck.
  
@@ -124,7 +132,7 @@ function parseScore(raw) {
   const json = extract(raw);
   if (!json) return { score: 0, style: "SAFE", reaction: "Our judge couldn't quite catch that one." };
   const score = Math.max(0, Math.min(MAX_PER_Q, Math.round(Number(json.score) || 0)));
-  const style = OPTION_TYPES[json.style] ? json.style : "SAFE";
+  const style = scoreToStyle(score);
   const reaction = (typeof json.reaction === "string" && json.reaction.trim())
     ? json.reaction.trim()
     : "The judges have spoken.";
@@ -140,9 +148,9 @@ async function scoreAnswer(scenario, answer) {
 Judge on: wit, cleverness, originality, surprise, word choice, and the comedic tone that comes through the words (sarcasm, absurdity, deadpan, etc.). A safe, literal, or boring answer scores low. Length and randomness alone are not funny — genuine humour is the bar. Transcription may be imperfect; judge generously on intent.
  
 Return ONLY a JSON object, no markdown:
-{ "score": <integer 0-${MAX_PER_Q}>, "style": "<FUNNY|SARCASTIC|UNHINGED|SAFE>", "reaction": "<a short, witty one-line reaction to THEIR specific answer, max 14 words>" }
+{ "score": <integer 0-${MAX_PER_Q}>, "reaction": "<a short, witty one-line reaction to THEIR specific answer, max 14 words>" }
  
-Score guide: 0-6 boring/safe/no real attempt; 7-13 mild chuckle; 14-19 genuinely funny; 20-${MAX_PER_Q} comic gold. "style" = the comedic register their answer landed in (use SAFE when it isn't really funny).`,
+Score guide: 0-6 boring/safe/no real attempt; 7-12 chaotic or weak attempt; 13-18 sarcastic or witty, a real chuckle; 19-${MAX_PER_Q} genuinely funny / comic gold.`,
     messages: [{ role: "user", content: `Scenario: "${scenario}"\n\nPlayer's spoken answer (transcribed): "${answer}"` }],
   });
   const raw = data.content?.find(b => b.type === "text")?.text || "";
@@ -632,7 +640,7 @@ export default function App() {
  
             <div className="alert scenario-alert rounded-4 p-3 mb-3" role="region">
               <div className="sn small text-uppercase mb-2" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
-              <p className="dp m-0 fst-italic fs-5 lh-base">"{q.scenario}"</p>
+              <p className="dp m-0 fs-5 lh-base">"{q.scenario}"</p>
             </div>
  
             {/* Answer stage — speak (or type) your funniest response */}
@@ -714,7 +722,7 @@ export default function App() {
                 {result.transcript && (
                   <div className="alert reaction-box rounded-4 p-3 mb-3 safe" role="status">
                     <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.12em", fontSize: 10, color: "var(--text-muted)" }}>{result.picked ? "You picked" : "You said"}</div>
-                    <p className="dp m-0 fst-italic lh-sm">"{result.transcript}"</p>
+                    <p className="dp m-0 lh-sm">"{result.transcript}"</p>
                   </div>
                 )}
                 <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[result.style].key}`} role="status">
@@ -722,7 +730,7 @@ export default function App() {
                     <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
                       {OPTION_TYPES[result.style].label}
                     </div>
-                    <p className="dp m-0 fst-italic lh-sm">"{result.reaction}"</p>
+                    <p className="dp m-0 lh-sm">"{result.reaction}"</p>
                   </div>
                   <div className="text-center flex-shrink-0">
                     <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[result.style].color }}>
