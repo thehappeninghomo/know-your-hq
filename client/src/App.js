@@ -538,25 +538,22 @@ export default function App() {
                 <img className="d-block mx-auto mb-2" src="https://imgcdn.analyticsvidhya.com/dhs/av_dhs_logo.svg" alt="Analytics Vidhya DataHack Summit" style={{ height: 52 }} />
                 <h1 className="dp curtain display-5 fw-bolder lh-1 m-0">Know Your<br />Humour Quotient</h1>
                 <p className="sn text-muted mt-2 mb-0 small lh-base">
-                  6 wild scenarios. Speak or type your funniest answer — our AI judges your wit (up to 25 pts).<br />
-                  <strong className="fw-medium">Stuck? Tap a hint word to drop it into your answer.</strong>
+                  6 scenarios · Speak or type · AI scores 0–25 · Tap hint words if stuck.
                 </p>
               </div>
  
-              <div className="row g-2 mb-3">
+ 
+              <div className="row g-1 mb-3">
                 {Object.entries(OPTION_TYPES).map(([key, val]) => (
-                  <div key={key} className="col-6">
-                    <div className={`type-card d-flex align-items-center gap-2 p-2 rounded-3 h-100 ${val.key}`}>
-                      <div className="fs-5">{val.label.split(" ")[0]}</div>
-                      <div>
-                        <div className="sn type-label small fw-semibold">{val.label.slice(3)}</div>
-                        <div className="sn text-muted" style={{ fontSize: 11 }}>{val.desc}</div>
-                      </div>
+                  <div key={key} className="col-3">
+                    <div className={`type-card d-flex flex-column align-items-center justify-content-center text-center px-1 py-2 rounded-3 h-100 ${val.key}`} title={val.desc}>
+                      <div className="fs-5 lh-1">{val.label.split(" ")[0]}</div>
+                      <div className="sn type-label fw-semibold mt-1" style={{ fontSize: 10, letterSpacing: "0.02em" }}>{val.label.slice(3)}</div>
                     </div>
                   </div>
                 ))}
               </div>
- 
+
               <div className="mb-3">
                 <label htmlFor="stageName" className="form-label sn small text-muted text-uppercase" style={{ letterSpacing: "0.1em" }}>Your stage name</label>
                 <input
