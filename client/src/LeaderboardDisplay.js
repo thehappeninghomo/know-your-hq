@@ -7,6 +7,14 @@ const MAX_SCORE = 6 * 25;
 const MEDALS = ["🥇", "🥈", "🥉"];
 const MEDAL_CLASS = ["gold", "silver", "bronze"];
 
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function LeaderboardDisplay() {
   const [entries, setEntries]         = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -53,9 +61,14 @@ export default function LeaderboardDisplay() {
                     ? MEDALS[i]
                     : <span className="sn text-muted fw-semibold fs-6">#{i + 1}</span>}
                 </div>
-                <div className="flex-grow-1">
+                <div className="flex-grow-1 min-w-0">
                   <div className="dp lb-name">{e.name}</div>
-                  <div className="sn small text-muted mt-1">{e.emoji} {e.title} · {e.time}</div>
+                  {e.email && (
+                    <div className="sn text-muted text-truncate" style={{ fontSize: 12 }}>{e.email}</div>
+                  )}
+                  <div className="sn small text-muted mt-1">
+                    {e.emoji} {e.title} · ⏱ {formatDuration(e.duration_ms)}
+                  </div>
                 </div>
                 <div className="text-end flex-shrink-0">
                   <div className="dp lb-score">{e.score}</div>

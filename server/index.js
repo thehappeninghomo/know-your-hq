@@ -61,12 +61,12 @@ if (usePostgres) {
 async function getLeaderboard() {
   if (usePostgres) {
     const { rows } = await pool.query(
-      "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC, duration_ms ASC NULLS LAST, id ASC"
+      "SELECT id, name, email, score, title, emoji, time, duration_ms FROM leaderboard ORDER BY score DESC, duration_ms ASC NULLS LAST, id ASC"
     );
     return rows;
   }
   return db.prepare(
-    "SELECT id, name, score, title, emoji, time FROM leaderboard ORDER BY score DESC, duration_ms IS NULL, duration_ms ASC, id ASC"
+    "SELECT id, name, email, score, title, emoji, time, duration_ms FROM leaderboard ORDER BY score DESC, duration_ms IS NULL, duration_ms ASC, id ASC"
   ).all();
 }
 
