@@ -80,6 +80,26 @@ $purple-dark: #7b2d9a;
   border: 1px solid var(--purple-border);
   color: var(--text);
 }
+.scenario-pane {
+  background: var(--purple-dim);
+  min-height: 100%;
+}
+
+.scenario-visual {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--purple-border);
+  background: rgba(0, 0, 0, 0.45);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+}
 .reaction-box {
   background: var(--bg);
   border: 1px solid var(--bd);
@@ -88,12 +108,12 @@ $purple-dark: #7b2d9a;
  
 // ── Answer stage (speak your answer) ─────────────────────────────────────────
 .mic-btn {
-  width: 84px;
-  height: 84px;
+  width: 128px;
+  height: 128px;
   border-radius: 50%;
   border: 2px solid var(--purple-border);
   background: var(--purple-dim);
-  font-size: 34px;
+  font-size: 56px;
   line-height: 1;
   cursor: pointer;
   transition:

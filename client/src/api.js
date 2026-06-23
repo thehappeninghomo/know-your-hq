@@ -15,6 +15,7 @@ async function post(path, body) {
 }
 
 export const callClaude = (body) => post("/api/claude", body);
+export const generateImage = (body) => post("/api/image", body);
 
 export async function fetchLeaderboard() {
   const res = await fetch(`${API_BASE}/api/leaderboard`);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchLeaderboard, saveScore, callClaude } from "./api";
+import { fetchLeaderboard, saveScore, callClaude, generateImage } from "./api";
 import "./styles/App.scss";
  
 // ── Brand colors (mirror the CSS tokens in styles/global.scss) ──────────────
@@ -127,6 +127,26 @@ async function generateQuestions() {
   });
   const raw = data.content?.find(b => b.type === "text")?.text?.trim() || "[]";
   return parseQuestions(raw);
+}
+
+function imagePromptFor(scenario) {
+  // Strip the trailing prompt-to-the-player so the image generator focuses on the scene.
+  const scene = scenario.replace(/\s*what (do|would|will) you (say|do)\??\s*$/i, "").trim();
+  return [
+    `Illustrate the exact comedic moment described: "${scene}".`,
+    "Style: hand-drawn editorial cartoon meets Pixar concept art — exaggerated facial expressions, theatrical body language, comic-strip timing. Catch the character mid-reaction (cringing, panicking, frozen wide-eyed, mortified). Bold ink lines, painterly colors, dramatic lighting that heightens the absurdity.",
+    "Make the joke READ AT A GLANCE. Focus on the funniest beat of the moment, not the setup. Show the SPECIFIC objects, people, and setting named in the scene — do not generalize. Indian / South Asian office or urban context where the scene implies it.",
+    "Hard constraints: no readable text, no captions, no logos, no watermarks, no signage with words. Landscape composition that fills the frame edge to edge.",
+  ].join(" ");
+}
+
+async function generateScenarioImage(scenario) {
+  try {
+    const data = await generateImage({ prompt: imagePromptFor(scenario) });
+    return data?.data?.[0]?.url || null;
+  } catch {
+    return null;
+  }
 }
  
 // ── Humor judging ──────────────────────────────────────────────────────────────
@@ -400,6 +420,9 @@ export default function App() {
       qs = FALLBACK_QUESTIONS;
       setToast({ type: "warning", message: "Claude unavailable — using built-in scenarios" });
     }
+    // Generate scenario images in parallel; any failure just leaves that question's image null.
+    const images = await Promise.all(qs.map(q => generateScenarioImage(q.scenario)));
+    qs = qs.map((q, i) => ({ ...q, image: images[i] }));
     setLoading(false);
     setQuestions(qs);
     setQIdx(0); setScores([]); setTotalScore(0);
@@ -607,27 +630,10 @@ export default function App() {
  
       {/* ── GAME ─────────────────────────────────────────────────────────────── */}
       {screen === "game" && q && (
-        <div className="card stage-card slide-up w-100" style={{ maxWidth: 1200 }} key={animKey}>
-          <div className="card-body p-4">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <div>
-                <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Question</div>
-                <div className="dp fs-3 lh-1">
-                  {qIdx + 1} <span className="text-muted fs-6">/ {questions.length}</span>
-                </div>
-              </div>
-              <TimerRing value={timeLeft} max={30} />
-              <div className="text-end">
-                <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Score</div>
-                <div className="dp fs-3 lh-1">{totalScore}</div>
-              </div>
-            </div>
- 
-            <div className="progress mb-3" role="progressbar" aria-valuenow={qIdx + 1} aria-valuemin={0} aria-valuemax={questions.length}>
-              <div className="progress-bar" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, transition: "width .4s ease" }} />
-            </div>
- 
-            <div className="alert scenario-alert rounded-4 p-3 mb-3" role="region">
+        <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }} key={animKey}>
+          <div className="row g-0">
+            {/* Left pane — scenario visual + text + hints */}
+            <div className="col-md-6 pane-divider scenario-pane p-4 d-flex flex-column">
               <div className="d-flex justify-content-between align-items-center mb-2" style={{ gap: 8 }}>
                 <div className="sn small text-uppercase" style={{ letterSpacing: "0.15em", fontSize: 10, color: "var(--purple)" }}>The scenario</div>
                 {narrating && (
@@ -636,9 +642,14 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <p className="dp m-0 fs-5 lh-base">"{q.scenario}"</p>
+              {q.image && (
+                <div className="scenario-visual mb-3">
+                  <img src={q.image} alt="" />
+                </div>
+              )}
+              <p className="dp fs-5 lh-base mb-3">"{q.scenario}"</p>
               {Array.isArray(q.keywords) && q.keywords.length > 0 && (
-                <div className="d-flex flex-wrap align-items-center mt-3" style={{ gap: 6 }}>
+                <div className="d-flex flex-wrap align-items-center mt-auto" style={{ gap: 6 }}>
                   <span className="sn small text-uppercase text-muted me-1" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Hints</span>
                   {q.keywords.map((kw, i) => (
                     <button
@@ -656,92 +667,111 @@ export default function App() {
                 </div>
               )}
             </div>
- 
-            {/* Answer stage — speak (or type) your funniest response */}
-            {!result && !judging && (
-              <div className="answer-stage mb-3">
-                {speech.supported && (
-                  <div className="text-center mb-3">
+
+            {/* Right pane — header, progress, answer / result */}
+            <div className="col-md-6 card-body p-4 d-flex flex-column">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Question</div>
+                  <div className="dp fs-3 lh-1">
+                    {qIdx + 1} <span className="text-muted fs-6">/ {questions.length}</span>
+                  </div>
+                </div>
+                <TimerRing value={timeLeft} max={30} />
+                <div className="text-end">
+                  <div className="sn small text-muted text-uppercase" style={{ letterSpacing: "0.12em", fontSize: 10 }}>Score</div>
+                  <div className="dp fs-3 lh-1">{totalScore}</div>
+                </div>
+              </div>
+
+              <div className="progress mb-3" role="progressbar" aria-valuenow={qIdx + 1} aria-valuemin={0} aria-valuemax={questions.length}>
+                <div className="progress-bar" style={{ width: `${((qIdx + 1) / questions.length) * 100}%`, transition: "width .4s ease" }} />
+              </div>
+
+              {!result && !judging && (
+                <div className="answer-stage d-flex flex-column flex-grow-1">
+                  {speech.supported && (
+                    <div className="text-center mb-3">
+                      <button
+                        type="button"
+                        className={`mic-btn${speech.listening ? " recording" : ""}`}
+                        onClick={speech.listening ? speech.stop : speech.start}
+                        aria-pressed={speech.listening}
+                        aria-label={speech.listening ? "Stop recording" : "Start recording"}
+                      >
+                        🎤
+                      </button>
+                      <div className="sn text-muted mt-3" style={{ fontSize: 14 }}>
+                        {speech.listening
+                          ? "Listening… say your funniest answer, then tap to stop"
+                          : "Tap the mic and say your answer out loud"}
+                      </div>
+                    </div>
+                  )}
+                  {!speech.supported && (
+                    <div className="sn text-muted mb-2" style={{ fontSize: 14 }}>
+                      🎤 Voice input isn't supported in this browser — type your funniest answer instead.
+                    </div>
+                  )}
+                  <textarea
+                    className="form-control answer-box flex-grow-1"
+                    placeholder={speech.supported
+                      ? "Your words appear here as you speak — you can also type or tweak them"
+                      : "Type your funniest answer…"}
+                    value={speech.transcript}
+                    onChange={e => speech.edit(e.target.value)}
+                    style={{ fontSize: 17, lineHeight: 1.5, minHeight: 140, resize: "none" }}
+                  />
+                  <div className="d-grid mt-3">
                     <button
-                      type="button"
-                      className={`mic-btn${speech.listening ? " recording" : ""}`}
-                      onClick={speech.listening ? speech.stop : speech.start}
-                      aria-pressed={speech.listening}
-                      aria-label={speech.listening ? "Stop recording" : "Start recording"}
+                      className="btn btn-primary btn-lg fw-bold py-2"
+                      onClick={handleSubmit}
+                      disabled={!speech.transcript.trim()}
                     >
-                      🎤
+                      Submit Answer
                     </button>
-                    <div className="sn small text-muted mt-2">
-                      {speech.listening
-                        ? "Listening… say your funniest answer, then tap to stop"
-                        : "Tap the mic and say your answer out loud"}
-                    </div>
-                  </div>
-                )}
-                {!speech.supported && (
-                  <div className="sn small text-muted mb-2">
-                    🎤 Voice input isn't supported in this browser — type your funniest answer instead.
-                  </div>
-                )}
-                <textarea
-                  className="form-control answer-box"
-                  rows={3}
-                  placeholder={speech.supported
-                    ? "Your words appear here as you speak — you can also type or tweak them"
-                    : "Type your funniest answer…"}
-                  value={speech.transcript}
-                  onChange={e => speech.edit(e.target.value)}
-                />
-                <div className="d-grid gap-2 col-md-6 mx-auto mt-3">
-                  <button
-                    className="btn btn-primary btn-lg fw-bold py-2"
-                    onClick={handleSubmit}
-                    disabled={!speech.transcript.trim()}
-                  >
-                    Submit Answer
-                  </button>
-                </div>
- 
-              </div>
-            )}
- 
-            {judging && (
-              <div className="text-center py-4">
-                <div className="think-dots"><span /><span /><span /></div>
-                <p className="sn text-muted mt-3 mb-0">The judge is weighing your wit…</p>
-              </div>
-            )}
- 
-            {result && (
-              <>
-                {result.transcript && (
-                  <div className="alert reaction-box rounded-4 p-3 mb-3 safe" role="status">
-                    <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.12em", fontSize: 10, color: "var(--text-muted)" }}>{result.picked ? "You picked" : "You said"}</div>
-                    <p className="dp m-0 lh-sm">"{result.transcript}"</p>
-                  </div>
-                )}
-                <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[result.style].key}`} role="status">
-                  <div>
-                    <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
-                      {OPTION_TYPES[result.style].label}
-                    </div>
-                    <p className="dp m-0 lh-sm">"{result.reaction}"</p>
-                  </div>
-                  <div className="text-center flex-shrink-0">
-                    <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[result.style].color }}>
-                      +{result.score}
-                    </div>
-                    <div className="sn small text-muted">points</div>
                   </div>
                 </div>
- 
-                <div className="d-grid gap-2 col-md-6 mx-auto">
-                  <button className="btn btn-primary btn-lg fw-bold py-2" onClick={handleNext}>
-                    {qIdx + 1 >= questions.length ? "See Your HQ" : "Next Question"}
-                  </button>
+              )}
+
+              {judging && (
+                <div className="text-center py-4 flex-grow-1 d-flex flex-column justify-content-center">
+                  <div className="think-dots"><span /><span /><span /></div>
+                  <p className="sn text-muted mt-3 mb-0">The judge is weighing your wit…</p>
                 </div>
-              </>
-            )}
+              )}
+
+              {result && (
+                <div className="d-flex flex-column flex-grow-1">
+                  {result.transcript && (
+                    <div className="alert reaction-box rounded-4 p-3 mb-3 safe" role="status">
+                      <div className="sn small text-uppercase mb-1" style={{ letterSpacing: "0.12em", fontSize: 10, color: "var(--text-muted)" }}>{result.picked ? "You picked" : "You said"}</div>
+                      <p className="dp m-0 lh-sm">"{result.transcript}"</p>
+                    </div>
+                  )}
+                  <div className={`alert reaction-box pop d-flex justify-content-between align-items-center gap-3 mb-3 rounded-4 ${OPTION_TYPES[result.style].key}`} role="status">
+                    <div>
+                      <div className="sn small text-uppercase fw-bold mb-1" style={{ letterSpacing: "0.1em", fontSize: 10, color: "var(--fg)" }}>
+                        {OPTION_TYPES[result.style].label}
+                      </div>
+                      <p className="dp m-0 lh-sm">"{result.reaction}"</p>
+                    </div>
+                    <div className="text-center flex-shrink-0">
+                      <div className="dp fs-1 lh-1" style={{ color: OPTION_TYPES[result.style].color }}>
+                        +{result.score}
+                      </div>
+                      <div className="sn small text-muted">points</div>
+                    </div>
+                  </div>
+
+                  <div className="d-grid mt-auto">
+                    <button className="btn btn-primary btn-lg fw-bold py-2" onClick={handleNext}>
+                      {qIdx + 1 >= questions.length ? "See Your HQ" : "Next Question"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

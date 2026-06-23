@@ -173,4 +173,41 @@ app.post("/api/claude", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.post("/api/image", async (req, res) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  console.log("[/api/image] OPENAI_API_KEY present:", !!apiKey, apiKey ? `(length ${apiKey.length}, ends …${apiKey.slice(-4)})` : "");
+  if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY not set" });
+  const { prompt, model = "gpt-image-1", size = "1536x1024", quality = "medium" } = req.body || {};
+  if (typeof prompt !== "string" || !prompt.trim()) return res.status(400).json({ error: "Missing prompt" });
+  console.log("[/api/image] prompt:", prompt.slice(0, 80) + (prompt.length > 80 ? "…" : ""));
+  try {
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, prompt, size, quality, n: 1, output_format: "webp", output_compression: 80 }),
+    });
+    const data = await response.json();
+    console.log("[/api/image] OpenAI status:", response.status, response.ok ? "ok" : JSON.stringify(data).slice(0, 200));
+    if (!response.ok) return res.status(response.status).json(data);
+    // gpt-image-1 returns b64_json; normalize to a data URL so the client just reads .url.
+    if (Array.isArray(data?.data)) {
+      data.data = data.data.map(item =>
+        item.url ? item
+        : item.b64_json ? { ...item, url: `data:image/webp;base64,${item.b64_json}` }
+        : item
+      );
+    }
+    res.json(data);
+  } catch (err) {
+    console.error("OpenAI image error:", err);
+    res.status(500).json({ error: "Failed to reach OpenAI" });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  const anth = process.env.ANTHROPIC_API_KEY;
+  const oai  = process.env.OPENAI_API_KEY;
+  console.log("ANTHROPIC_API_KEY:", anth ? `loaded (length ${anth.length}, ends …${anth.slice(-4)})` : "MISSING");
+  console.log("OPENAI_API_KEY:",    oai  ? `loaded (length ${oai.length}, ends …${oai.slice(-4)})`  : "MISSING");
+});
