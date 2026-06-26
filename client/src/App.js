@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchLeaderboard, saveScore, callClaude, generateImage } from "./api";
+import { fetchLeaderboard, saveScore, callClaude, fetchQuestions } from "./api";
 import "./styles/App.scss";
  
 // ── Brand colors (mirror the CSS tokens in styles/global.scss) ──────────────
@@ -93,61 +93,8 @@ function cancelNarration() {
   }
 }
  
-const QUESTIONS_PROMPT = `Generate 6 funny scenario questions for a comedy game called "Know Your Humour Quotient". Players SPEAK or TYPE their own funny answer. To help them when they're stuck, each scenario also offers a few inspiration keywords — short, evocative words or short phrases the player can riff on or weave into their answer.
-
-Return ONLY a valid JSON array. No markdown, no explanation, just the array. Use this exact shape:
-[
-  {
-    "scenario": "A relatable/absurd 1-2 sentence situation that invites a funny response (end with a prompt like 'What do you say?' / 'What do you do?')",
-    "keywords": ["4-5 short, vivid words or 2-word phrases tied to this scenario; concrete nouns/verbs/objects that spark a joke; not full sentences"]
-  }
-]
-
-Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible. Return only the JSON array of 6 objects.`;
- 
-function parseQuestions(raw) {
-  try {
-    const arr = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    const cleaned = (Array.isArray(arr) ? arr : []).filter(q =>
-      q && typeof q.scenario === "string" && q.scenario.trim() &&
-      Array.isArray(q.keywords) && q.keywords.length >= 1
-    );
-    return cleaned.length ? cleaned : FALLBACK_QUESTIONS;
-  } catch {
-    return FALLBACK_QUESTIONS;
-  }
-}
- 
-async function generateQuestions() {
-  const data = await callClaude({
-    model: "claude-sonnet-4-6",
-    max_tokens: 3000,
-    system: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
-    messages: [{ role: "user", content: QUESTIONS_PROMPT }],
-  });
-  const raw = data.content?.find(b => b.type === "text")?.text?.trim() || "[]";
-  return parseQuestions(raw);
-}
-
-function imagePromptFor(scenario) {
-  // Strip the trailing prompt-to-the-player so the image generator focuses on the scene.
-  const scene = scenario.replace(/\s*what (do|would|will) you (say|do)\??\s*$/i, "").trim();
-  return [
-    `Illustrate the exact comedic moment described: "${scene}".`,
-    "Style: hand-drawn editorial cartoon meets Pixar concept art — exaggerated facial expressions, theatrical body language, comic-strip timing. Catch the character mid-reaction (cringing, panicking, frozen wide-eyed, mortified). Bold ink lines, painterly colors, dramatic lighting that heightens the absurdity.",
-    "Make the joke READ AT A GLANCE. Focus on the funniest beat of the moment, not the setup. Show the SPECIFIC objects, people, and setting named in the scene — do not generalize. Indian / South Asian office or urban context where the scene implies it.",
-    "Hard constraints: no readable text, no captions, no logos, no watermarks, no signage with words. Landscape composition that fills the frame edge to edge.",
-  ].join(" ");
-}
-
-async function generateScenarioImage(scenario) {
-  try {
-    const data = await generateImage({ prompt: imagePromptFor(scenario) });
-    return data?.data?.[0]?.url || null;
-  } catch {
-    return null;
-  }
-}
+// Scenario + image generation lives on the server now — see /api/questions.
+// The client just fetches a pre-baked batch and falls back to FALLBACK_QUESTIONS if the server is unreachable.
  
 // ── Humor judging ──────────────────────────────────────────────────────────────
 function parseScore(raw) {
@@ -198,16 +145,8 @@ const FALLBACK_QUESTIONS = [
     keywords: ["dal makhani", "strategy", "pivot", "lunch", "eye contact"],
   },
   {
-    scenario: "A pigeon walks into your video call and sits directly in front of your camera.",
-    keywords: ["co-founder", "Dave", "introduce", "instincts", "attendance"],
-  },
-  {
     scenario: "You send a meme to your work WhatsApp group by mistake. The CEO reacts with 👀.",
     keywords: ["company culture", "double down", "CEO", "blink first", "vibe"],
-  },
-  {
-    scenario: "Your phone rings loudly in a silent cinema during the most emotional scene.",
-    keywords: ["mom", "speaker", "killer", "subtitles", "shame"],
   },
   {
     scenario: "You walk into the wrong meeting room mid-presentation. 15 strangers stare at you.",
@@ -369,7 +308,7 @@ export default function App() {
   const gameStartRef                  = useRef(0);
   const speech                        = useSpeech();
  
-  const MAX_SCORE = 6 * MAX_PER_Q;
+  const MAX_SCORE = 4 * MAX_PER_Q;
  
   useEffect(() => {
     fetchLeaderboard().then(setLeaderboard).catch(() => {});
@@ -415,14 +354,12 @@ export default function App() {
     setScreen("loading");
     let qs;
     try {
-      qs = await generateQuestions();
+      const data = await fetchQuestions(4);
+      qs = Array.isArray(data?.questions) && data.questions.length ? data.questions : FALLBACK_QUESTIONS;
     } catch {
       qs = FALLBACK_QUESTIONS;
-      setToast({ type: "warning", message: "Claude unavailable — using built-in scenarios" });
+      setToast({ type: "warning", message: "Couldn't reach the question server — using built-in scenarios" });
     }
-    // Generate scenario images in parallel; any failure just leaves that question's image null.
-    const images = await Promise.all(qs.map(q => generateScenarioImage(q.scenario)));
-    qs = qs.map((q, i) => ({ ...q, image: images[i] }));
     setLoading(false);
     setQuestions(qs);
     setQIdx(0); setScores([]); setTotalScore(0);
@@ -561,7 +498,7 @@ export default function App() {
                 <img className="d-block mx-auto mb-2" src="https://imgcdn.analyticsvidhya.com/dhs/av_dhs_logo.svg" alt="Analytics Vidhya DataHack Summit" style={{ height: 52 }} />
                 <h1 className="dp curtain display-5 fw-bolder lh-1 m-0">Know Your<br />Humour Quotient</h1>
                 <p className="sn text-muted mt-2 mb-0 small lh-base">
-                  6 scenarios · Speak or type · AI scores 0–25 · Tap hint words if stuck.
+                  4 scenarios · Speak or type · AI scores 0–25 · Tap hint words if stuck.
                 </p>
               </div>
  
@@ -779,7 +716,7 @@ export default function App() {
       {/* ── RESULT ───────────────────────────────────────────────────────────── */}
       {screen === "result" && (
         <div className="card stage-card slide-up border-0 overflow-hidden w-100" style={{ maxWidth: 1200 }}>
-          <div className="row g-0">
+          <div className="row g-0" style={{ minHeight: 640 }}>
             <div className="col-md-6 pane-divider p-4 p-md-5 text-center d-flex flex-column justify-content-center">
               <div className="sn small text-muted text-uppercase mb-2" style={{ letterSpacing: "0.25em" }}>{name} · Your results</div>
               <div className="display-3 mb-1">{hqInfo.emoji}</div>

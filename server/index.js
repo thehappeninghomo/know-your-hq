@@ -204,10 +204,156 @@ app.post("/api/image", async (req, res) => {
   }
 });
 
+// ── Question pool ─────────────────────────────────────────────────────────────
+// Pre-generated scenarios (each with a baked-in image) live in memory and are
+// served instantly to players. When the pool drops to REFILL_THRESHOLD we kick
+// off a background refill back up to TARGET_POOL_SIZE. The very first players
+// before the pool is warmed up fall through to on-demand generation.
+const TARGET_POOL_SIZE = 40;
+const REFILL_THRESHOLD = 8;
+const BATCH_SIZE       = 10;
+let questionPool = [];
+let refilling    = false;
+
+function questionsPrompt(count) {
+  return `Generate ${count} funny scenario questions for a comedy game called "Know Your Humour Quotient". Players SPEAK or TYPE their own funny answer. To help them when they're stuck, each scenario also offers a few inspiration keywords — short, evocative words or short phrases the player can riff on or weave into their answer.
+
+Return ONLY a valid JSON array. No markdown, no explanation, just the array. Use this exact shape:
+[
+  {
+    "scenario": "A relatable/absurd 1-2 sentence situation that invites a funny response (end with a prompt like 'What do you say?' / 'What do you do?')",
+    "keywords": ["4-5 short, vivid words or 2-word phrases tied to this scenario; concrete nouns/verbs/objects that spark a joke; not full sentences"]
+  }
+]
+
+Mix scenarios: office disasters, awkward social moments, absurd everyday situations, tech gone wrong, food emergencies, public transport chaos. Indian-office-culture friendly where possible. Return only the JSON array of ${count} objects.`;
+}
+
+function imagePromptFor(scenario) {
+  const scene = scenario.replace(/\s*what (do|would|will) you (say|do)\??\s*$/i, "").trim();
+  return [
+    `Illustrate the exact comedic moment described: "${scene}".`,
+    "Style: hand-drawn editorial cartoon meets Pixar concept art — exaggerated facial expressions, theatrical body language, comic-strip timing. Catch the character mid-reaction (cringing, panicking, frozen wide-eyed, mortified). Bold ink lines, painterly colors, dramatic lighting that heightens the absurdity.",
+    "Make the joke READ AT A GLANCE. Focus on the funniest beat of the moment, not the setup. Show the SPECIFIC objects, people, and setting named in the scene — do not generalize. Indian / South Asian office or urban context where the scene implies it.",
+    "Hard constraints: no readable text, no captions, no logos, no watermarks, no signage with words. Landscape composition that fills the frame edge to edge.",
+  ].join(" ");
+}
+
+async function claudeGenerateScenarios(count) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4000,
+      system: `You generate questions for a comedy game called "Know Your Humour Quotient". Return ONLY a valid JSON array. No markdown, no explanation, just the array.`,
+      messages: [{ role: "user", content: questionsPrompt(count) }],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(`Claude ${response.status}: ${JSON.stringify(data).slice(0, 200)}`);
+  const raw = data.content?.find(b => b.type === "text")?.text?.trim() || "[]";
+  let arr;
+  try { arr = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
+  catch { return []; }
+  return (Array.isArray(arr) ? arr : []).filter(q =>
+    q && typeof q.scenario === "string" && q.scenario.trim() &&
+    Array.isArray(q.keywords) && q.keywords.length >= 1
+  );
+}
+
+async function openaiGenerateImage(prompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1536x1024", quality: "medium", n: 1, output_format: "webp", output_compression: 80 }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn("[pool] image failed:", JSON.stringify(data).slice(0, 200));
+      return null;
+    }
+    const item = data?.data?.[0];
+    if (item?.url) return item.url;
+    if (item?.b64_json) return `data:image/webp;base64,${item.b64_json}`;
+    return null;
+  } catch (err) {
+    console.warn("[pool] image error:", err.message);
+    return null;
+  }
+}
+
+async function buildQuestionsWithImages(scenarios) {
+  const images = await Promise.all(scenarios.map(s => openaiGenerateImage(imagePromptFor(s.scenario))));
+  return scenarios.map((s, i) => ({ ...s, image: images[i] }));
+}
+
+async function refillPool() {
+  if (refilling) return;
+  refilling = true;
+  try {
+    while (questionPool.length < TARGET_POOL_SIZE) {
+      const need = Math.min(BATCH_SIZE, TARGET_POOL_SIZE - questionPool.length);
+      console.log(`[pool] refilling — current ${questionPool.length}, fetching ${need}…`);
+      let scenarios;
+      try {
+        scenarios = await claudeGenerateScenarios(need);
+      } catch (err) {
+        console.error("[pool] Claude fetch failed:", err.message);
+        break;
+      }
+      if (!scenarios.length) {
+        console.warn("[pool] Claude returned no scenarios, stopping refill");
+        break;
+      }
+      const enriched = await buildQuestionsWithImages(scenarios);
+      questionPool.push(...enriched);
+      console.log(`[pool] now ${questionPool.length}/${TARGET_POOL_SIZE}`);
+    }
+  } finally {
+    refilling = false;
+  }
+}
+
+app.post("/api/questions", async (req, res) => {
+  const n = Math.max(1, Math.min(20, parseInt(req.body?.n, 10) || 4));
+
+  // Pull from the pool first (Node is single-threaded so this splice is atomic).
+  const questions = questionPool.splice(0, Math.min(n, questionPool.length));
+
+  // If the pool was short, fill the gap on-demand for this player so the game starts now.
+  const missing = n - questions.length;
+  if (missing > 0) {
+    console.log(`[/api/questions] pool short by ${missing}, generating on-demand`);
+    try {
+      const scenarios = await claudeGenerateScenarios(missing);
+      const enriched = await buildQuestionsWithImages(scenarios);
+      questions.push(...enriched);
+    } catch (err) {
+      console.error("[/api/questions] on-demand generation failed:", err.message);
+    }
+  }
+
+  // Trigger a background refill if the pool has dropped below threshold.
+  if (questionPool.length < REFILL_THRESHOLD && !refilling) {
+    console.log(`[pool] below threshold (${questionPool.length} < ${REFILL_THRESHOLD}), kicking off refill`);
+    refillPool(); // fire-and-forget
+  }
+
+  res.json({ questions, poolSize: questionPool.length });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   const anth = process.env.ANTHROPIC_API_KEY;
   const oai  = process.env.OPENAI_API_KEY;
   console.log("ANTHROPIC_API_KEY:", anth ? `loaded (length ${anth.length}, ends …${anth.slice(-4)})` : "MISSING");
   console.log("OPENAI_API_KEY:",    oai  ? `loaded (length ${oai.length}, ends …${oai.slice(-4)})`  : "MISSING");
+  // Warm the question pool so the first player gets an instant start.
+  refillPool();
 });

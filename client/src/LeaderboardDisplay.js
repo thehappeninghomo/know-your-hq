@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { fetchLeaderboard } from "./api";
 import "./styles/Leaderboard.scss";
 
-const MAX_SCORE = 6 * 25;
+const MAX_SCORE = 4 * 25;
 const MEDALS = ["🥇", "🥈", "🥉"];
 const MEDAL_CLASS = ["gold", "silver", "bronze"];
 
